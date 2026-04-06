@@ -32,3 +32,31 @@ export interface PaginatedResponse<T> {
     hasPrev: boolean
   }
 }
+
+// Room creation types
+export interface CreateRoomRequest {
+  name: string
+  description?: string
+  template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
+  facilitatorName: string
+}
+
+export interface RoomResponse {
+  id: string
+  name: string
+  description?: string
+  facilitatorCode: string
+  participantCode: string
+  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
+  maxVotesPerUser: number
+  columns: ColumnResponse[]
+  createdAt: string
+}
+
+export interface ColumnResponse {
+  id: string
+  title: string
+  description?: string
+  color: string
+  sortOrder: number
+}

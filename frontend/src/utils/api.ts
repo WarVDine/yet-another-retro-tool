@@ -1,4 +1,4 @@
-import { ApiResponse, ApiError } from '@/types/index'
+import { ApiResponse, ApiError, CreateRoomRequest, RoomResponse } from '@/types/index'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -63,3 +63,10 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL)
+
+// Room API methods
+export const roomApi = {
+  createRoom: async (roomData: CreateRoomRequest): Promise<RoomResponse> => {
+    return apiClient.post<RoomResponse>('/rooms', roomData)
+  }
+}

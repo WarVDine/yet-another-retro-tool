@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,8 +5,6 @@ import { Input } from '@/components/ui/input'
 import { Plus, Users, Calendar } from 'lucide-react'
 
 export function HomePage() {
-  const [count, setCount] = useState(0)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
       <div className="max-w-6xl mx-auto">
@@ -72,25 +69,6 @@ export function HomePage() {
               <Button variant="secondary" className="w-full" asChild>
                 <Link to="/retro/demo">View Demo</Link>
               </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Demo Counter */}
-        <div className="text-center">
-          <Card className="inline-block">
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600 mb-2">Demo Counter</p>
-              <Button 
-                onClick={() => setCount((count) => count + 1)}
-                variant="outline"
-                className="mb-2"
-              >
-                Count is {count}
-              </Button>
-              <p className="text-xs text-gray-500">
-                Edit <code className="bg-gray-100 px-1 rounded">src/pages/HomePage.tsx</code> to test HMR
-              </p>
             </CardContent>
           </Card>
         </div>
