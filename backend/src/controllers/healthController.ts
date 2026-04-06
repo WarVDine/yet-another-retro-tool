@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import { CustomResponse } from '@/types'
+import { CustomResponse } from '@/types/index'
 
 export const getHealth = (req: Request, res: CustomResponse): void => {
   const healthCheck = {

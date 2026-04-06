@@ -1,13 +1,13 @@
 import { Request, Response } from 'express'
-import { 
-  CustomResponse, 
-  RetroSession, 
+import {
+  CustomResponse,
+  RetroSession,
   RetroItem,
   CreateRetroSessionDto,
   UpdateRetroSessionDto,
   CreateRetroItemDto,
   UpdateRetroItemDto
-} from '@/types'
+} from '@/types/index'
 import { asyncHandler } from '@/middleware/errorHandler'
 
 // Mock data - replace with database operations
