@@ -38,13 +38,8 @@ export function CreateRetroPage() {
         facilitatorName: formData.facilitatorName.trim()
       })
       
-      // Navigate to the created room (for now, we'll navigate to home with success message)
-      // TODO: Replace with actual room page when implemented
-      navigate('/', { 
-        state: { 
-          message: `Room "${room.name}" created successfully! Facilitator code: ${room.facilitatorCode}` 
-        }
-      })
+      // Navigate to the created room
+      navigate(`/retro/${room.id}`)
     } catch (error) {
       console.error('Failed to create room:', error)
       setError(error instanceof Error ? error.message : 'Failed to create room. Please try again.')
