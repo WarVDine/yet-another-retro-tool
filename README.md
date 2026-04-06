@@ -1,168 +1,168 @@
 # Yet Another Retro Tool
 
-A full-stack application to host and attend retrospectives in a team. Built with React (frontend), Express.js (backend), and TypeScript throughout.
+A full-stack application for hosting and attending team retrospectives, built with React and Express.js in a monorepo structure.
 
-## 🏗️ Project Structure
-
-This is a monorepo containing three main packages:
-
-```
-yet-another-retro-tool/
-├── package.json              # Root workspace configuration
-├── frontend/                 # React + Vite + TypeScript
-│   ├── src/
-│   │   ├── components/       # Reusable React components
-│   │   ├── pages/           # Page components (routing)
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── utils/           # Frontend utilities
-│   │   ├── types/           # Frontend-specific types
-│   │   └── assets/          # Static assets
-│   ├── public/              # Public static files
-│   ├── package.json         # Frontend dependencies
-│   └── vite.config.ts       # Vite configuration
-├── backend/                  # Express.js + TypeScript API
-│   ├── src/
-│   │   ├── routes/          # API route definitions
-│   │   ├── controllers/     # Route handlers
-│   │   ├── middleware/      # Express middleware
-│   │   ├── utils/           # Backend utilities
-│   │   ├── types/           # Backend-specific types
-│   │   └── config/          # Configuration files
-│   ├── package.json         # Backend dependencies
-│   └── tsconfig.json        # TypeScript configuration
-├── shared/                   # Shared types and utilities
-│   ├── src/
-│   │   ├── types/           # Shared TypeScript types
-│   │   ├── constants/       # Shared constants
-│   │   └── utils/           # Shared utility functions
-│   ├── package.json         # Shared package dependencies
-│   └── tsconfig.json        # TypeScript configuration
-└── README.md                # This file
-```
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js (v18.0.0 or higher)
-- npm (v9.0.0 or higher)
+- **Docker runtime** (Docker Desktop OR Colima) installed and running
+- **Node.js 18+** and **npm 9+**
 
-### Installation
+### Get Started in 3 Commands
 
-1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd yet-another-retro-tool
-```
-
-2. Install all dependencies:
-```bash
+# 1. Install dependencies
 npm run install:all
-```
 
-This will install dependencies for the root workspace and all sub-packages.
+# 2. Start the database
+npm run db:up
 
-### Development
+# 3. Set up the database
+npm run db:migrate && npm run db:seed
 
-#### Start both frontend and backend simultaneously:
-```bash
+# 4. Start the development servers
 npm run dev
 ```
 
-This will start:
-- Frontend development server at `http://localhost:3000`
-- Backend API server at `http://localhost:5000`
+Your app will be running at:
+- **Frontend**: http://localhost:3000
+- **Backend**: http://localhost:5000
 
-#### Start individual services:
-```bash
-# Frontend only
-npm run dev:frontend
+## 📁 Project Structure
 
-# Backend only  
-npm run dev:backend
+```
+yet-another-retro-tool/
+├── frontend/          # React + Vite + TypeScript
+├── backend/           # Express.js + TypeScript + Drizzle ORM
+├── shared/            # Shared types and utilities
+├── docker-compose.yml # PostgreSQL database
+└── package.json       # Workspace configuration
 ```
 
-### Building for Production
+## 🗄️ Database Management
 
-#### Build all packages:
+### Quick Commands
+
 ```bash
-npm run build
+# Start PostgreSQL database
+npm run db:up
+
+# Run migrations (create tables)
+npm run db:migrate
+
+# Seed with test data
+npm run db:seed
+
+# View database in browser (Drizzle Studio)
+npm run db:studio
+
+# Reset database (drop all data and recreate)
+npm run db:reset
+
+# Stop database
+npm run db:down
+
+# View database logs
+npm run db:logs
 ```
 
-#### Build individual packages:
+### Schema Changes Workflow
+
 ```bash
-npm run build:frontend
-npm run build:backend
+# 1. Modify schema in backend/src/database/schema.ts
+# 2. Generate migration from schema changes
+npm run db:generate
+
+# 3. Review the generated migration file
+# 4. Apply migration to database
+npm run db:migrate
+
+# 5. Verify changes
+npm run db:verify
 ```
 
-### Testing
+### Test Data
 
-#### Run all tests:
+After seeding, you'll have 3 test rooms with different retrospective formats:
+
+1. **Sprint 23 Retrospective** (Classic format)
+   - What went well?
+   - What could be improved?
+   - Action items
+
+2. **Q1 Team Retro** (Start/Stop/Continue format)
+   - Start doing
+   - Stop doing  
+   - Continue doing
+
+3. **Project Kickoff Retro** (Mad/Sad/Glad format)
+   - Mad
+   - Sad
+   - Glad
+
+Each room has access codes printed in the console after seeding.
+
+## 🛠️ Development
+
+### Available Scripts
+
 ```bash
-npm run test
+# Development
+npm run dev              # Start both frontend and backend
+npm run dev:frontend     # Start only frontend
+npm run dev:backend      # Start only backend
+
+# Building
+npm run build           # Build both frontend and backend
+npm run build:frontend  # Build only frontend
+npm run build:backend   # Build only backend
+
+# Testing
+npm run test           # Run tests in all workspaces
+npm run test:frontend  # Run frontend tests
+npm run test:backend   # Run backend tests
+
+# Linting
+npm run lint           # Lint all workspaces
+npm run lint:fix       # Fix linting issues
+
+# Cleanup
+npm run clean          # Clean all build outputs and node_modules
 ```
 
-#### Run tests for specific packages:
-```bash
-npm run test:frontend
-npm run test:backend
-```
-
-### Linting
-
-#### Lint all packages:
-```bash
-npm run lint
-```
-
-#### Fix linting issues:
-```bash
-npm run lint:fix
-```
-
-## 🛠️ Technology Stack
+## 🏗️ Technology Stack
 
 ### Frontend
-- **React 18** - UI library with hooks and functional components
-- **Vite** - Fast build tool and development server
-- **TypeScript** - Type safety and better developer experience
-- **React Router** - Client-side routing
-- **CSS Modules** - Scoped styling
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **React Router** for client-side routing
+- **Tailwind CSS** for styling
+- **shadcn/ui** for UI components
+- **Lucide React** for icons
 
 ### Backend
-- **Express.js** - Web application framework
-- **TypeScript** - Type safety for Node.js
-- **Node.js** - JavaScript runtime
-- **Morgan** - HTTP request logging
-- **Helmet** - Security middleware
-- **CORS** - Cross-origin resource sharing
+- **Express.js** with TypeScript
+- **Drizzle ORM** for database operations
+- **PostgreSQL** as the database
+- **Helmet** for security headers
+- **Morgan** for request logging
+- **CORS** for cross-origin requests
 
-### Development Tools
-- **Concurrently** - Run multiple commands simultaneously
-- **ESLint** - Code linting
-- **Prettier** - Code formatting
-- **Nodemon** - Backend hot reloading
-- **Jest** - Testing framework
+### Database Schema
+- **Rooms**: Retrospective sessions with access codes
+- **Users**: Guest users (no login required)
+- **Columns**: Flexible column system (not hardcoded categories)
+- **Cards**: Individual thoughts/items
+- **Card Groups**: Grouped related cards (2+ cards)
+- **Likes**: Voting system with configurable limits per user
+- **Phases**: Structured retro flow (setup → writing → grouping → voting → discussing)
 
-## 📡 API Documentation
-
-The backend API is available at `http://localhost:5000/api` during development.
-
-### Health Check
-- `GET /api/health` - Server health status
-
-### Retrospective Sessions
-- `GET /api/retro/sessions` - Get all retro sessions
-- `GET /api/retro/sessions/:id` - Get specific retro session
-- `POST /api/retro/sessions` - Create new retro session
-- `PUT /api/retro/sessions/:id` - Update retro session
-- `DELETE /api/retro/sessions/:id` - Delete retro session
-
-### Retrospective Items
-- `GET /api/retro/sessions/:sessionId/items` - Get items for a session
-- `POST /api/retro/sessions/:sessionId/items` - Create new item
-- `PUT /api/retro/items/:id` - Update item
-- `DELETE /api/retro/items/:id` - Delete item
+### Migration System
+- **Drizzle Kit Migrations**: Version-controlled schema changes
+- **Automatic Generation**: `npm run db:generate` creates migrations from schema
+- **Rollback Support**: Can revert to previous schema versions
+- **Team Sync**: All schema changes tracked in git
 
 ## 🔧 Configuration
 
@@ -170,63 +170,81 @@ The backend API is available at `http://localhost:5000/api` during development.
 
 Create a `.env` file in the `backend/` directory:
 
-```bash
-cp backend/.env.example backend/.env
+```env
+DATABASE_URL="postgresql://retro_user:retro_password@localhost:5432/retro_db"
+PORT=5000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:3000
 ```
 
-Available environment variables:
-- `PORT` - Backend server port (default: 5000)
-- `NODE_ENV` - Environment (development/production)
-- `CORS_ORIGIN` - Allowed CORS origin (default: http://localhost:3000)
-- `API_PREFIX` - API route prefix (default: /api)
+### Docker Setup
 
-### Frontend Configuration
+If using **Colima** instead of Docker Desktop:
 
-The frontend automatically proxies API requests to the backend during development. This is configured in `frontend/vite.config.ts`.
+```bash
+# Start Colima
+colima start
 
-## 🧪 Available Scripts
+# Verify Docker is working
+docker ps
+```
 
-### Root Level Scripts
-- `npm run dev` - Start both frontend and backend
-- `npm run build` - Build all packages
-- `npm run test` - Run all tests
-- `npm run lint` - Lint all packages
-- `npm run clean` - Clean all build outputs and node_modules
+## 🚨 Troubleshooting
 
-### Frontend Scripts (run with `npm run <script> --workspace=frontend`)
-- `dev` - Start development server
-- `build` - Build for production
-- `preview` - Preview production build
-- `test` - Run tests
-- `lint` - Run ESLint
+### Port 5432 Already in Use
 
-### Backend Scripts (run with `npm run <script> --workspace=backend`)
-- `dev` - Start development server with hot reload
-- `build` - Compile TypeScript
-- `start` - Start production server
-- `test` - Run tests
-- `lint` - Run ESLint
+```bash
+# Find what's using the port
+lsof -i :5432
 
-## 🎯 Next Steps
+# Kill the process or change port in docker-compose.yml
+```
 
-1. **Database Integration**: Add your preferred database (MongoDB, PostgreSQL, etc.)
-2. **Authentication**: Implement user authentication and authorization
-3. **Real-time Features**: Add WebSocket support for live collaboration
-4. **Testing**: Add comprehensive test coverage
-5. **Deployment**: Set up CI/CD and deployment configuration
-6. **UI/UX**: Enhance the user interface and experience
+### Docker Not Running
 
-## 🤝 Contributing
+```bash
+# For Docker Desktop
+# Start Docker Desktop application
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Make your changes
-4. Run tests: `npm run test`
-5. Run linting: `npm run lint`
-6. Commit your changes: `git commit -m 'Add some feature'`
-7. Push to the branch: `git push origin feature/your-feature-name`
-8. Submit a pull request
+# For Colima (macOS/Linux)
+colima start
 
-## 📝 License
+# Verify
+docker --version
+docker-compose --version
+```
 
-This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+### Database Connection Issues
+
+```bash
+# Check if container is running
+docker ps
+
+# View database logs
+npm run db:logs
+
+# Connect to database directly
+docker exec -it retro-postgres psql -U retro_user -d retro_db
+```
+
+### TypeScript Errors
+
+```bash
+# Clean and rebuild
+npm run clean
+npm run install:all
+npm run build
+```
+
+## 📝 Contributing
+
+1. Install dependencies: `npm run install:all`
+2. Start the database: `npm run db:up && npm run db:migrate && npm run db:seed`
+3. Start development: `npm run dev`
+4. Make your changes
+5. Run tests: `npm run test`
+6. Run linting: `npm run lint:fix`
+
+## 📄 License
+
+ISC License

@@ -21,10 +21,20 @@
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
     "clean": "npm run clean --workspaces && rm -rf node_modules",
-    "install:all": "npm install"
+    "install:all": "npm install",
+    "db:up": "docker-compose up -d postgres",
+    "db:down": "docker-compose down",
+    "db:logs": "docker-compose logs -f postgres",
+    "db:generate": "npm run db:generate --workspace=backend",
+    "db:drop": "npm run db:drop --workspace=backend",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "db:reset": "npm run db:reset --workspace=backend",
+    "db:studio": "npm run db:studio --workspace=backend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "drizzle-orm": "^0.45.2",
     "eslint": "^8.57.0",
     "prettier": "^3.2.5"
   },
