@@ -71,3 +71,31 @@ export interface ApiError extends Error {
   statusCode?: number
   code?: string
 }
+
+// Room creation types (from shared package)
+export interface CreateRoomRequest {
+  name: string
+  description?: string
+  template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
+  facilitatorName: string
+}
+
+export interface RoomResponse {
+  id: string
+  name: string
+  description?: string | undefined
+  facilitatorCode: string
+  participantCode: string
+  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
+  maxVotesPerUser: number
+  columns: ColumnResponse[]
+  createdAt: string
+}
+
+export interface ColumnResponse {
+  id: string
+  title: string
+  description?: string | undefined
+  color: string
+  sortOrder: number
+}
