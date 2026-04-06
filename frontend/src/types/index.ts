@@ -64,3 +64,55 @@ export interface ColumnResponse {
   color: string
   sortOrder: number
 }
+
+// Room joining types
+export interface JoinRoomRequest {
+  code: string
+  participantName: string
+}
+
+export interface JoinRoomResponse {
+  roomId: string
+  role: 'facilitator' | 'participant'
+  participantId: string
+}
+
+// Extended room response with participants and cards
+export interface DetailedRoomResponse {
+  id: string
+  name: string
+  description?: string
+  facilitatorCode: string
+  participantCode: string
+  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
+  maxVotesPerUser: number
+  isActive: boolean
+  columns: DetailedColumnResponse[]
+  participants: ParticipantResponse[]
+  createdAt: string
+}
+
+export interface DetailedColumnResponse {
+  id: string
+  title: string
+  description?: string
+  color: string
+  sortOrder: number
+  cards: CardResponse[]
+}
+
+export interface CardResponse {
+  id: string
+  content: string
+  isAnonymous: boolean
+  authorName?: string
+  sortOrder: number
+  createdAt: string
+}
+
+export interface ParticipantResponse {
+  id: string
+  displayName: string
+  role: 'facilitator' | 'participant'
+  joinedAt: string
+}

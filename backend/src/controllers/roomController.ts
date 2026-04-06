@@ -1,10 +1,11 @@
 import { Request } from 'express'
 import { db } from '@/database/connection'
-import { rooms, columns, users, roomParticipants } from '@/database/schema'
-import { CreateRoomRequest, RoomResponse, CustomResponse } from '@/types/index'
+import { rooms, columns, users, roomParticipants, cards } from '@/database/schema'
+import { CreateRoomRequest, RoomResponse, CustomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse } from '@/types/index'
 import { asyncHandler } from '@/middleware/errorHandler'
 import { generateCode } from '@/utils/codeGenerator'
 import { RETRO_TEMPLATES } from '@/constants/templates'
+import { eq, or } from 'drizzle-orm'
 
 export const createRoom = asyncHandler(
   async (req: Request, res: CustomResponse<RoomResponse>) => {
@@ -108,6 +109,173 @@ export const createRoom = asyncHandler(
         success: false,
         error: 'Failed to create room',
         message: 'An error occurred while creating the room'
+      })
+    }
+  }
+)
+
+export const joinRoom = asyncHandler(
+  async (req: Request, res: CustomResponse<JoinRoomResponse>) => {
+    const { code, participantName }: JoinRoomRequest = req.body
+    
+    // Validation
+    if (!code || !participantName) {
+      res.status(400).json({
+        success: false,
+        error: 'Code and participant name are required'
+      })
+      return
+    }
+
+    try {
+      // Find room by either facilitator or participant code
+      const room = await db.query.rooms.findFirst({
+        where: or(
+          eq(rooms.facilitatorCode, code),
+          eq(rooms.participantCode, code)
+        )
+      })
+      
+      if (!room || !room.isActive) {
+        res.status(404).json({
+          success: false,
+          error: 'Room not found or inactive'
+        })
+        return
+      }
+      
+      // Determine role based on which code was used
+      const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
+      
+      // Create user and add as participant in transaction
+      const result = await db.transaction(async (tx) => {
+        // Create user
+        const userResult = await tx.insert(users).values({
+          guestId: `${role}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          displayName: participantName
+        }).returning()
+        
+        if (!userResult.length) {
+          throw new Error('Failed to create user')
+        }
+        const user = userResult[0]!
+        
+        // Add as room participant (handle existing participant gracefully)
+        await tx.insert(roomParticipants).values({
+          roomId: room.id,
+          userId: user.id,
+          role
+        }).onConflictDoNothing()
+        
+        return { user }
+      })
+      
+      res.json({
+        success: true,
+        data: {
+          roomId: room.id,
+          role,
+          participantId: result.user.id
+        },
+        message: 'Successfully joined room'
+      })
+    } catch (error) {
+      console.error('Error joining room:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to join room',
+        message: 'An error occurred while joining the room'
+      })
+    }
+  }
+)
+
+export const getRoomById = asyncHandler(
+  async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
+    const { id } = req.params
+    
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        error: 'Room ID is required'
+      })
+      return
+    }
+
+    try {
+      // Load room with all related data using Drizzle relations
+      const room = await db.query.rooms.findFirst({
+        where: eq(rooms.id, id),
+        with: {
+          columns: {
+            orderBy: [columns.sortOrder],
+            with: {
+              cards: {
+                orderBy: [columns.sortOrder],
+                with: {
+                  author: true
+                }
+              }
+            }
+          },
+          participants: {
+            with: {
+              user: true
+            }
+          }
+        }
+      })
+      
+      if (!room) {
+        res.status(404).json({
+          success: false,
+          error: 'Room not found'
+        })
+        return
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          id: room.id,
+          name: room.name,
+          description: room.description || undefined,
+          facilitatorCode: room.facilitatorCode,
+          participantCode: room.participantCode,
+          currentPhase: room.currentPhase,
+          maxVotesPerUser: room.maxVotesPerUser,
+          isActive: room.isActive,
+          columns: room.columns.map(col => ({
+            id: col.id,
+            title: col.title,
+            description: col.description || undefined,
+            color: col.color,
+            sortOrder: col.sortOrder,
+            cards: col.cards.map(card => ({
+              id: card.id,
+              content: card.content,
+              isAnonymous: card.isAnonymous,
+              authorName: card.isAnonymous ? undefined : card.author.displayName,
+              sortOrder: card.sortOrder,
+              createdAt: card.createdAt.toISOString()
+            }))
+          })),
+          participants: room.participants.map(p => ({
+            id: p.user.id,
+            displayName: p.user.displayName,
+            role: p.role,
+            joinedAt: p.joinedAt.toISOString()
+          })),
+          createdAt: room.createdAt.toISOString()
+        },
+        message: 'Room loaded successfully'
+      })
+    } catch (error) {
+      console.error('Error loading room:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to load room',
+        message: 'An error occurred while loading the room'
       })
     }
   }
