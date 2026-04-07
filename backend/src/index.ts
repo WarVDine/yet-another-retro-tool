@@ -1,8 +1,8 @@
-import express from 'express'
 import cors from 'cors'
+import dotenv from 'dotenv'
+import express from 'express'
 import helmet from 'helmet'
 import morgan from 'morgan'
-import dotenv from 'dotenv'
 
 import { errorHandler } from '@/middleware/errorHandler'
 import { notFound } from '@/middleware/notFound'

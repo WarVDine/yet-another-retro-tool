@@ -1,11 +1,12 @@
+import { eq, or } from 'drizzle-orm'
 import { Request } from 'express'
+
+import { CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse, RETRO_TEMPLATES } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
 import { rooms, columns, users, roomParticipants, cards } from '@/database/schema'
-import { CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse, RETRO_TEMPLATES } from '@yet-another-retro-tool/shared'
-import { CustomResponse } from '@/types/index'
 import { asyncHandler } from '@/middleware/errorHandler'
+import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
-import { eq, or } from 'drizzle-orm'
 
 export const createRoom = asyncHandler(
   async (req: Request, res: CustomResponse<RoomResponse>) => {

@@ -1,3 +1,4 @@
+import { relations } from 'drizzle-orm'
 import { 
   pgTable, 
   uuid, 
@@ -10,7 +11,6 @@ import {
   primaryKey,
   index
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
 
 // Enums
 export const retroPhaseEnum = pgEnum('retro_phase', [

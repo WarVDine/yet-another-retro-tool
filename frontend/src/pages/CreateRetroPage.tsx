@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Loader2 } from 'lucide-react'
+
+import { TemplateSelector } from '@/components/TemplateSelector'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Loader2 } from 'lucide-react'
-import { TemplateSelector } from '@/components/TemplateSelector'
 import { roomApi } from '@/utils/api'
 
 export function CreateRetroPage() {
@@ -16,12 +17,12 @@ export function CreateRetroPage() {
     name: '',
     description: '',
     template: 'classic' as const,
-    facilitatorName: ''
+    facilitatorName: '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.name.trim() || !formData.facilitatorName.trim()) {
       setError('Please fill in all required fields')
       return
@@ -29,15 +30,15 @@ export function CreateRetroPage() {
 
     setIsLoading(true)
     setError(null)
-    
+
     try {
       const room = await roomApi.createRoom({
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         template: formData.template,
-        facilitatorName: formData.facilitatorName.trim()
+        facilitatorName: formData.facilitatorName.trim(),
       })
-      
+
       // Navigate to the created room
       navigate(`/retro/${room.id}`)
     } catch (error) {
@@ -49,7 +50,7 @@ export function CreateRetroPage() {
   }
 
   const updateFormData = (field: keyof typeof formData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: value }))
     if (error) setError(null) // Clear error when user starts typing
   }
 
@@ -73,9 +74,7 @@ export function CreateRetroPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Message */}
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                  {error}
-                </div>
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">{error}</div>
               )}
 
               {/* Basic Info */}
@@ -125,9 +124,7 @@ export function CreateRetroPage() {
 
               {/* Template Selection */}
               <div>
-                <label className="block text-sm font-medium mb-4">
-                  Choose Template
-                </label>
+                <label className="block text-sm font-medium mb-4">Choose Template</label>
                 <TemplateSelector
                   selectedTemplate={formData.template}
                   onTemplateChange={(template) => updateFormData('template', template as typeof formData.template)}

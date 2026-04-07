@@ -1,4 +1,12 @@
-import { ApiResponse, ApiError, CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse } from '@yet-another-retro-tool/shared'
+import {
+  ApiResponse,
+  ApiError,
+  CreateRoomRequest,
+  RoomResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  DetailedRoomResponse,
+} from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -9,12 +17,9 @@ class ApiClient {
     this.baseURL = baseURL
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
-    
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -25,7 +30,7 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config)
-      
+
       if (!response.ok) {
         const errorData: ApiError = await response.json()
         throw new Error(errorData.message || 'API request failed')
@@ -72,12 +77,12 @@ export const roomApi = {
   createRoom: async (roomData: CreateRoomRequest): Promise<RoomResponse> => {
     return apiClient.post<RoomResponse>('/rooms', roomData)
   },
-  
+
   joinRoom: async (joinData: JoinRoomRequest): Promise<JoinRoomResponse> => {
     return apiClient.post<JoinRoomResponse>('/rooms/join', joinData)
   },
-  
+
   getRoomById: async (roomId: string): Promise<DetailedRoomResponse> => {
     return apiClient.get<DetailedRoomResponse>(`/rooms/${roomId}`)
-  }
+  },
 }
