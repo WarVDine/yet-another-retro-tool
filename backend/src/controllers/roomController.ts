@@ -12,6 +12,7 @@ import {
 import { db } from '@/database/connection'
 import { rooms, columns, users, roomParticipants, cards } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
+import { validateRoomParticipant } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
 
@@ -260,6 +261,19 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
         message: 'Room not found',
       })
       return
+    }
+
+    // Validate participant access if guestId is provided
+    if (guestId && currentUserId) {
+      const isParticipant = await validateRoomParticipant(currentUserId, room.id)
+      if (!isParticipant) {
+        res.status(403).json({
+          success: false,
+          error: 'Authorization Error',
+          message: 'You must be a room participant to access this room',
+        })
+        return
+      }
     }
 
     res.json({

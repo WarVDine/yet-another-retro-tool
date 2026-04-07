@@ -60,16 +60,31 @@ export function GuestUserProvider({ children }: GuestUserProviderProps) {
             error: null,
           })
         } catch (error) {
-          // Guest ID exists in localStorage but not in backend - clear it
-          console.log('Stored guest ID not found in backend, clearing localStorage')
-          localStorage.removeItem('retro-guest-id')
-          setGuestUser({
-            guestId: null,
-            displayName: null,
-            userId: null,
-            isLoading: false,
-            error: null,
-          })
+          // Only clear localStorage if it's a 404 (user not found)
+          // For other errors (500, network issues, etc.), keep the guest ID
+          const is404Error = (error as any)?.status === 404
+          
+          if (is404Error) {
+            console.log('Stored guest ID not found in backend (404), clearing localStorage')
+            localStorage.removeItem('retro-guest-id')
+            setGuestUser({
+              guestId: null,
+              displayName: null,
+              userId: null,
+              isLoading: false,
+              error: null,
+            })
+          } else {
+            // For other errors, keep the guest ID but show error state
+            console.warn('Error fetching guest user data (not 404), keeping localStorage:', error)
+            setGuestUser({
+              guestId: storedGuestId,
+              displayName: null,
+              userId: null,
+              isLoading: false,
+              error: error instanceof Error ? error.message : 'Failed to fetch user data',
+            })
+          }
         }
       } else {
         // No stored guest ID - user needs to create one
@@ -125,6 +140,21 @@ export function GuestUserProvider({ children }: GuestUserProviderProps) {
       }))
     } catch (error) {
       console.error('Error updating display name:', error)
+      
+      // If it's a 404, the guest user no longer exists - clear localStorage
+      const is404Error = (error as any)?.status === 404
+      if (is404Error) {
+        console.log('Guest user not found during update (404), clearing localStorage')
+        localStorage.removeItem('retro-guest-id')
+        setGuestUser({
+          guestId: null,
+          displayName: null,
+          userId: null,
+          isLoading: false,
+          error: 'User session expired',
+        })
+      }
+      
       throw error
     }
   }
