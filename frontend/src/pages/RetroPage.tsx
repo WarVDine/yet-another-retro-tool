@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Users, Clock, Settings } from 'lucide-react'
+import { ArrowLeft, Users, Clock, Settings, Copy, Check } from 'lucide-react'
 
 import { DetailedRoomResponse, CardResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ export function RetroPage() {
   const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isCopied, setIsCopied] = useState(false)
 
   const loadRoom = useCallback(async () => {
     if (!id) return
@@ -124,6 +125,27 @@ export function RetroPage() {
     [guestUser.guestId]
   )
 
+  const handleCopyJoinCode = useCallback(async () => {
+    if (!room?.participantCode) return
+    
+    try {
+      await navigator.clipboard.writeText(room.participantCode)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000) // Reset after 2 seconds
+    } catch (error) {
+      console.error('Failed to copy join code:', error)
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea')
+      textArea.value = room.participantCode
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    }
+  }, [room?.participantCode])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -183,6 +205,41 @@ export function RetroPage() {
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 <span>Created {new Date(room.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* Join Code Section */}
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900 mb-1">
+                    Invite Others to Join
+                  </h3>
+                  <p className="text-xs text-blue-700">
+                    Share this code for others to join the retrospective
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-lg font-mono font-bold text-blue-900 tracking-wider">
+                      {room.participantCode}
+                    </div>
+                    <div className="text-xs text-blue-600">Join Code</div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyJoinCode}
+                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                    title={isCopied ? 'Copied!' : 'Copy join code'}
+                  >
+                    {isCopied ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 
