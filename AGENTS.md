@@ -6,15 +6,17 @@ This document defines the coding standards and conventions that must be followed
 
 ## 1. String Formatting Standard
 
-**Rule**: All strings must use single quotes instead of double quotes.
+**Rule**: All strings must use single quotes instead of double quotes, except in specific use-cases
 
 **Applies to**: All TypeScript/JavaScript files (`.ts`, `.tsx`, `.js`, `.jsx`)
 
 **Examples**:
+
 ```typescript
 // ✅ Correct - use single quotes
 const message = 'Hello world'
 const apiUrl = 'https://api.example.com'
+const possesiveUsage = "This is my friend's dog!" // Double quotes should be used to allow for apostrophes
 const template = `Welcome ${name}!` // Template literals are fine
 
 // ❌ Incorrect - avoid double quotes
@@ -30,7 +32,8 @@ const apiUrl = "https://api.example.com"
 
 **Applies to**: All source files
 
-**Purpose**: 
+**Purpose**:
+
 - Ensures consistent file endings across the codebase
 - Provides proper git diffs without "No newline at end of file" warnings
 - Follows POSIX standard for text files
@@ -46,6 +49,7 @@ const apiUrl = "https://api.example.com"
 3. **Alphabetical order** within each group
 
 **Examples**:
+
 ```typescript
 // ✅ Correct import order
 import React, { useState, useEffect } from 'react'
@@ -65,7 +69,8 @@ import { ApiResponse } from '@yet-another-retro-tool/shared'
 import express from 'express'
 ```
 
-**Rationale**: 
+**Rationale**:
+
 - Clear separation between external dependencies and internal code
 - Alphabetical ordering makes imports easy to find and prevents duplicates
 - Consistent structure across all files
@@ -73,21 +78,25 @@ import express from 'express'
 ## 4. Project-Specific Patterns
 
 ### Monorepo Structure
+
 - Use workspace imports for shared packages: `@yet-another-retro-tool/shared`
 - Maintain clear boundaries between `frontend/`, `backend/`, and `shared/` packages
 - Keep shared types and constants in the `shared` package
 
 ### API Conventions
+
 - Use consistent error response format: `{ success: false, error: 'Error Type', message: 'User message' }`
 - All API responses should follow `ApiResponse<T>` interface from shared package
 - Use semantic error categories: 'Validation Error', 'Not Found', 'Internal Server Error'
 
 ### Accessibility Requirements
+
 - All form inputs must have proper labels (no placeholder-only labels)
 - Interactive elements must be keyboard accessible
 - Use semantic HTML and ARIA attributes appropriately
 
 ### Design System Integration
+
 - Use design tokens from CSS variables instead of hardcoded colors
 - Follow Marmalade Design System patterns and components
 - Maintain consistent spacing using Tailwind spacing tokens
@@ -95,6 +104,7 @@ import express from 'express'
 ## Enforcement
 
 These rules should be followed by all contributors. Future enhancements may include:
+
 - ESLint rules for automatic enforcement
 - Prettier configuration for consistent formatting
 - Pre-commit hooks to validate compliance
