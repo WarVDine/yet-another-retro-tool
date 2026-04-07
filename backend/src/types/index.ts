@@ -72,82 +72,15 @@ export interface ApiError extends Error {
   code?: string
 }
 
-// Room creation types (from shared package)
-export interface CreateRoomRequest {
-  name: string
-  description?: string
-  template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
-  facilitatorName: string
-}
-
-export interface RoomResponse {
-  id: string
-  name: string
-  description?: string | undefined
-  facilitatorCode: string
-  participantCode: string
-  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  maxVotesPerUser: number
-  columns: ColumnResponse[]
-  createdAt: string
-}
-
-export interface ColumnResponse {
-  id: string
-  title: string
-  description?: string | undefined
-  color: string
-  sortOrder: number
-}
-
-// Room joining types
-export interface JoinRoomRequest {
-  code: string
-  participantName: string
-}
-
-export interface JoinRoomResponse {
-  roomId: string
-  role: 'facilitator' | 'participant'
-  participantId: string
-}
-
-// Extended room response with participants and cards
-export interface DetailedRoomResponse {
-  id: string
-  name: string
-  description?: string | undefined
-  facilitatorCode: string
-  participantCode: string
-  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  maxVotesPerUser: number
-  isActive: boolean
-  columns: DetailedColumnResponse[]
-  participants: ParticipantResponse[]
-  createdAt: string
-}
-
-export interface DetailedColumnResponse {
-  id: string
-  title: string
-  description?: string | undefined
-  color: string
-  sortOrder: number
-  cards: CardResponse[]
-}
-
-export interface CardResponse {
-  id: string
-  content: string
-  isAnonymous: boolean
-  authorName?: string | undefined
-  sortOrder: number
-  createdAt: string
-}
-
-export interface ParticipantResponse {
-  id: string
-  displayName: string
-  role: 'facilitator' | 'participant'
-  joinedAt: string
-}
+// Re-export shared types for convenience
+export type {
+  CreateRoomRequest,
+  RoomResponse,
+  ColumnResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  DetailedRoomResponse,
+  DetailedColumnResponse,
+  CardResponse,
+  ParticipantResponse
+} from '@yet-another-retro-tool/shared'

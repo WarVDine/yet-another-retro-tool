@@ -1,3 +1,18 @@
+// Shared template definitions for retrospectives
+
+export interface TemplateColumn {
+  title: string
+  description: string
+  color: string
+}
+
+export interface Template {
+  id: string
+  name: string
+  description: string
+  columns: readonly TemplateColumn[]
+}
+
 export const RETRO_TEMPLATES = {
   classic: [
     { title: 'What went well?', description: 'Things that worked well this sprint', color: '#10B981' }, // green
@@ -23,3 +38,31 @@ export const RETRO_TEMPLATES = {
 } as const
 
 export type TemplateKey = keyof typeof RETRO_TEMPLATES
+
+// Template metadata for UI display
+export const TEMPLATE_METADATA: Record<TemplateKey, Template> = {
+  classic: {
+    id: 'classic',
+    name: 'Classic Retro',
+    description: 'The traditional retrospective format',
+    columns: RETRO_TEMPLATES.classic
+  },
+  startStopContinue: {
+    id: 'startStopContinue',
+    name: 'Start, Stop, Continue',
+    description: 'Focus on behaviors and practices',
+    columns: RETRO_TEMPLATES.startStopContinue
+  },
+  madSadGlad: {
+    id: 'madSadGlad',
+    name: 'Mad, Sad, Glad',
+    description: 'Emotional retrospective format',
+    columns: RETRO_TEMPLATES.madSadGlad
+  },
+  fourLs: {
+    id: 'fourLs',
+    name: '4 Ls',
+    description: 'Comprehensive learning-focused format',
+    columns: RETRO_TEMPLATES.fourLs
+  }
+} as const

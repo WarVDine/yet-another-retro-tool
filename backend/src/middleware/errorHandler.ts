@@ -14,7 +14,7 @@ export const errorHandler = (
 
   res.status(statusCode).json({
     success: false,
-    error: message,
+    error: err.name || 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.stack : message,
   })
 }

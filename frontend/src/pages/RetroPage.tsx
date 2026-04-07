@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Users, Clock, Settings } from 'lucide-react'
 import { roomApi } from '@/utils/api'
-import { DetailedRoomResponse } from '@/types/index'
+import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()

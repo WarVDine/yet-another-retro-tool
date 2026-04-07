@@ -1,4 +1,4 @@
-import { ApiResponse, ApiError, CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse } from '@/types/index'
+import { ApiResponse, ApiError, CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -32,6 +32,9 @@ class ApiClient {
       }
 
       const data: ApiResponse<T> = await response.json()
+      if (!data.data) {
+        throw new Error('No data received from API')
+      }
       return data.data
     } catch (error) {
       console.error('API request failed:', error)

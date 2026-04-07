@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Plus, Users, Calendar, Loader2 } from 'lucide-react'
+import { Plus, Users, Loader2 } from 'lucide-react'
 import { roomApi } from '@/utils/api'
 
 export function HomePage() {
@@ -54,7 +54,7 @@ export function HomePage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="text-center">
               <div className="mx-auto w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -90,42 +90,45 @@ export function HomePage() {
                   </div>
                 )}
                 
-                <Input 
-                  placeholder="Enter session code"
-                  value={joinForm.code}
-                  onChange={(e) => setJoinForm(prev => ({ ...prev, code: e.target.value }))}
-                  disabled={isJoining}
-                />
+                <div>
+                  <label htmlFor="session-code" className="block text-sm font-medium text-gray-700 mb-1">
+                    Session Code
+                  </label>
+                  <Input 
+                    id="session-code"
+                    placeholder="Enter session code"
+                    value={joinForm.code}
+                    onChange={(e) => setJoinForm(prev => ({ ...prev, code: e.target.value }))}
+                    disabled={isJoining}
+                    aria-describedby="session-code-help"
+                  />
+                  <p id="session-code-help" className="text-xs text-gray-500 mt-1">
+                    The code provided by the facilitator
+                  </p>
+                </div>
                 
-                <Input 
-                  placeholder="Your name"
-                  value={joinForm.participantName}
-                  onChange={(e) => setJoinForm(prev => ({ ...prev, participantName: e.target.value }))}
-                  disabled={isJoining}
-                />
+                <div>
+                  <label htmlFor="participant-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Your Name
+                  </label>
+                  <Input 
+                    id="participant-name"
+                    placeholder="Your name"
+                    value={joinForm.participantName}
+                    onChange={(e) => setJoinForm(prev => ({ ...prev, participantName: e.target.value }))}
+                    disabled={isJoining}
+                    aria-describedby="participant-name-help"
+                  />
+                  <p id="participant-name-help" className="text-xs text-gray-500 mt-1">
+                    How you'll appear to other participants
+                  </p>
+                </div>
                 
                 <Button type="submit" variant="outline" className="w-full" disabled={isJoining}>
                   {isJoining && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Join Session
                 </Button>
               </form>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <div className="mx-auto w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <Calendar className="w-6 h-6 text-purple-600" />
-              </div>
-              <CardTitle>Demo Retro</CardTitle>
-              <CardDescription>
-                Try out the tool with a sample retrospective
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="secondary" className="w-full" asChild>
-                <Link to="/retro/demo">View Demo</Link>
-              </Button>
             </CardContent>
           </Card>
         </div>

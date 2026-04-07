@@ -6,7 +6,6 @@ import dotenv from 'dotenv'
 
 import { errorHandler } from '@/middleware/errorHandler'
 import { notFound } from '@/middleware/notFound'
-import { retroRouter } from '@/routes/retro'
 import { healthRouter } from '@/routes/health'
 import { roomRouter } from '@/routes/rooms'
 
@@ -34,7 +33,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Routes
 app.use(`${API_PREFIX}/health`, healthRouter)
-app.use(`${API_PREFIX}/retro`, retroRouter)
 app.use(`${API_PREFIX}/rooms`, roomRouter)
 
 // Error handling middleware (must be last)

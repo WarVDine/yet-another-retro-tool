@@ -1,10 +1,10 @@
 import { Request } from 'express'
 import { db } from '@/database/connection'
 import { rooms, columns, users, roomParticipants, cards } from '@/database/schema'
-import { CreateRoomRequest, RoomResponse, CustomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse } from '@/types/index'
+import { CreateRoomRequest, RoomResponse, JoinRoomRequest, JoinRoomResponse, DetailedRoomResponse, RETRO_TEMPLATES } from '@yet-another-retro-tool/shared'
+import { CustomResponse } from '@/types/index'
 import { asyncHandler } from '@/middleware/errorHandler'
 import { generateCode } from '@/utils/codeGenerator'
-import { RETRO_TEMPLATES } from '@/constants/templates'
 import { eq, or } from 'drizzle-orm'
 
 export const createRoom = asyncHandler(
@@ -15,7 +15,8 @@ export const createRoom = asyncHandler(
     if (!name || !template || !facilitatorName) {
       res.status(400).json({
         success: false,
-        error: 'Name, template, and facilitator name are required',
+        error: 'Validation Error',
+        message: 'Name, template, and facilitator name are required'
       })
       return
     }
@@ -24,7 +25,8 @@ export const createRoom = asyncHandler(
     if (!(template in RETRO_TEMPLATES)) {
       res.status(400).json({
         success: false,
-        error: 'Invalid template selected',
+        error: 'Validation Error',
+        message: 'Invalid template selected'
       })
       return
     }
@@ -107,8 +109,8 @@ export const createRoom = asyncHandler(
       console.error('Error creating room:', error)
       res.status(500).json({
         success: false,
-        error: 'Failed to create room',
-        message: 'An error occurred while creating the room'
+        error: 'Internal Server Error',
+        message: 'Failed to create room'
       })
     }
   }
@@ -119,13 +121,14 @@ export const joinRoom = asyncHandler(
     const { code, participantName }: JoinRoomRequest = req.body
     
     // Validation
-    if (!code || !participantName) {
-      res.status(400).json({
-        success: false,
-        error: 'Code and participant name are required'
-      })
-      return
-    }
+        if (!code || !participantName) {
+          res.status(400).json({
+            success: false,
+            error: 'Validation Error',
+            message: 'Code and participant name are required'
+          })
+          return
+        }
 
     try {
       // Find room by either facilitator or participant code
@@ -136,13 +139,14 @@ export const joinRoom = asyncHandler(
         )
       })
       
-      if (!room || !room.isActive) {
-        res.status(404).json({
-          success: false,
-          error: 'Room not found or inactive'
-        })
-        return
-      }
+          if (!room || !room.isActive) {
+            res.status(404).json({
+              success: false,
+              error: 'Not Found',
+              message: 'Room not found or inactive'
+            })
+            return
+          }
       
       // Determine role based on which code was used
       const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
@@ -181,11 +185,11 @@ export const joinRoom = asyncHandler(
       })
     } catch (error) {
       console.error('Error joining room:', error)
-      res.status(500).json({
-        success: false,
-        error: 'Failed to join room',
-        message: 'An error occurred while joining the room'
-      })
+          res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: 'Failed to join room'
+          })
     }
   }
 )
@@ -194,13 +198,14 @@ export const getRoomById = asyncHandler(
   async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
     const { id } = req.params
     
-    if (!id) {
-      res.status(400).json({
-        success: false,
-        error: 'Room ID is required'
-      })
-      return
-    }
+        if (!id) {
+          res.status(400).json({
+            success: false,
+            error: 'Validation Error',
+            message: 'Room ID is required'
+          })
+          return
+        }
 
     try {
       // Load room with all related data using Drizzle relations
@@ -226,13 +231,14 @@ export const getRoomById = asyncHandler(
         }
       })
       
-      if (!room) {
-        res.status(404).json({
-          success: false,
-          error: 'Room not found'
-        })
-        return
-      }
+          if (!room) {
+            res.status(404).json({
+              success: false,
+              error: 'Not Found',
+              message: 'Room not found'
+            })
+            return
+          }
       
       res.json({
         success: true,
@@ -272,11 +278,11 @@ export const getRoomById = asyncHandler(
       })
     } catch (error) {
       console.error('Error loading room:', error)
-      res.status(500).json({
-        success: false,
-        error: 'Failed to load room',
-        message: 'An error occurred while loading the room'
-      })
+          res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: 'Failed to load room'
+          })
     }
   }
 )
