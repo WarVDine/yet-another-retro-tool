@@ -85,8 +85,8 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      // Ctrl/Cmd + Enter to save
+    if (e.key === 'Enter') {
+      // Enter to save (no newlines allowed)
       e.preventDefault()
       handleSave()
     } else if (e.key === 'Escape') {
@@ -147,7 +147,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
             <div className='flex justify-between items-center text-xs text-gray-500'>
               <span>{content.length}/500</span>
               <div className='flex gap-2'>
-                <span>Ctrl+Enter to save</span>
+                <span>Enter to save</span>
                 <span>•</span>
                 <span>Esc to cancel</span>
               </div>
