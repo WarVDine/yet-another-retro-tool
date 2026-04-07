@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -18,8 +18,12 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
   const [content, setContent] = useState(card.content)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const deleteIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -99,22 +103,60 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     }
   }
 
-  const handleDelete = async () => {
-    if (!card.isOwner || disabled) return
+  const startDelete = useCallback(() => {
+    if (!card.isOwner || disabled || isDeleting) return
 
-    if (!confirm('Are you sure you want to delete this card?')) {
-      return
-    }
+    setIsDeleting(true)
+    setDeleteProgress(0)
+    setError(null)
 
-    setIsLoading(true)
-    try {
-      await onDelete(card.id)
-    } catch (error) {
-      console.error('Failed to delete card:', error)
-      setError('Failed to delete card. Please try again.')
-      setIsLoading(false)
+    // Progress animation
+    const startTime = Date.now()
+    const duration = 3000 // 3 seconds hold time
+    
+    deleteIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min((elapsed / duration) * 100, 100)
+      setDeleteProgress(progress)
+    }, 16) // ~60fps
+
+    // Auto-delete after hold duration
+    deleteTimeoutRef.current = setTimeout(async () => {
+      try {
+        setIsLoading(true)
+        await onDelete(card.id)
+        // Card will disappear when parent component updates state after successful API call
+        // Reset local state in case component doesn't unmount immediately
+        setIsLoading(false)
+        cancelDelete()
+      } catch (error) {
+        console.error('Failed to delete card:', error)
+        setError('Failed to delete card. Please try again.')
+        setIsLoading(false)
+        cancelDelete()
+      }
+    }, duration)
+  }, [card.isOwner, card.id, disabled, isDeleting, onDelete])
+
+  const cancelDelete = useCallback(() => {
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current)
+      deleteTimeoutRef.current = null
     }
-  }
+    if (deleteIntervalRef.current) {
+      clearInterval(deleteIntervalRef.current)
+      deleteIntervalRef.current = null
+    }
+    setIsDeleting(false)
+    setDeleteProgress(0)
+  }, [])
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      cancelDelete()
+    }
+  }, [cancelDelete])
 
   return (
     <div
@@ -133,23 +175,90 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     >
       {/* Delete button - only visible for owned cards */}
       {card.isOwner && !disabled && (
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={(e) => {
-            e.stopPropagation()
-            handleDelete()
-          }}
-          disabled={isLoading}
-          className={`
-            absolute -top-2 -right-2 h-6 w-6 p-0 bg-red-500 hover:bg-red-600 text-white rounded-full
-            ${isEditing || isLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-            transition-opacity duration-200
-          `}
-          aria-label='Delete card'
-        >
-          <X className='h-3 w-3' />
-        </Button>
+        <div className='absolute -top-2 -right-2'>
+          <Button
+            variant='ghost'
+            size='sm'
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              startDelete()
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation()
+              if (isDeleting && deleteProgress < 100) {
+                cancelDelete()
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.stopPropagation()
+              if (isDeleting && deleteProgress < 100) {
+                cancelDelete()
+              }
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation()
+              startDelete()
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation()
+              if (isDeleting && deleteProgress < 100) {
+                cancelDelete()
+              }
+            }}
+            disabled={isLoading}
+            className={`
+              relative h-6 w-6 p-0 rounded-full overflow-hidden
+              ${isDeleting 
+                ? 'bg-red-600' 
+                : 'bg-red-500 hover:bg-red-600'
+              }
+              text-white
+              ${isEditing || isLoading || isDeleting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+              transition-opacity duration-200
+            `}
+            aria-label={isDeleting ? 'Hold to delete card' : 'Hold to delete card'}
+            title='Hold to delete'
+          >
+            {/* Progress circle background */}
+            {isDeleting && (
+              <div className='absolute inset-0'>
+                <svg className='w-full h-full -rotate-90' viewBox='0 0 24 24'>
+                  <circle
+                    cx='12'
+                    cy='12'
+                    r='10'
+                    stroke='rgba(255,255,255,0.3)'
+                    strokeWidth='2'
+                    fill='none'
+                  />
+                  <circle
+                    cx='12'
+                    cy='12'
+                    r='10'
+                    stroke='white'
+                    strokeWidth='2'
+                    fill='none'
+                    strokeDasharray={`${2 * Math.PI * 10}`}
+                    strokeDashoffset={`${2 * Math.PI * 10 * (1 - deleteProgress / 100)}`}
+                    className='transition-all duration-75 ease-linear'
+                  />
+                </svg>
+              </div>
+            )}
+            
+            {/* X icon */}
+            <X className={`h-3 w-3 relative z-10 ${isDeleting ? 'animate-pulse' : ''}`} />
+          </Button>
+          
+          {/* Hold instruction tooltip */}
+          {isDeleting && (
+            <div className='absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap'>
+              <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg'>
+                Hold to delete...
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className='p-3'>

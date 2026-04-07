@@ -19,7 +19,7 @@ export function RetroPage() {
 
   const loadRoom = useCallback(async () => {
     if (!id) return
-    
+
     try {
       setIsLoading(true)
       // Pass guestId to get ownership flags for cards
@@ -37,92 +37,99 @@ export function RetroPage() {
   }, [loadRoom])
 
   // Card CRUD handlers with optimistic updates
-  const handleCreateCard = useCallback(async (columnId: string, content: string): Promise<CardResponse> => {
-    if (!guestUser.guestId) {
-      throw new Error('User not authenticated')
-    }
-
-    const newCard = await cardApi.createCard({
-      columnId,
-      content,
-      guestId: guestUser.guestId
-    })
-
-    // Optimistic update: add card to local state
-    setRoom(prevRoom => {
-      if (!prevRoom) return prevRoom
-      
-      return {
-        ...prevRoom,
-        columns: prevRoom.columns.map(col => 
-          col.id === columnId
-            ? {
-                ...col,
-                cards: [...col.cards, newCard]
-              }
-            : col
-        )
+  const handleCreateCard = useCallback(
+    async (columnId: string, content: string): Promise<CardResponse> => {
+      if (!guestUser.guestId) {
+        throw new Error('User not authenticated')
       }
-    })
 
-    return newCard
-  }, [guestUser.guestId])
+      const newCard = await cardApi.createCard({
+        columnId,
+        content,
+        guestId: guestUser.guestId,
+      })
 
-  const handleUpdateCard = useCallback(async (cardId: string, content: string) => {
-    if (!guestUser.guestId) {
-      throw new Error('User not authenticated')
-    }
+      // Update UI after successful creation
+      setRoom((prevRoom) => {
+        if (!prevRoom) return prevRoom
 
-    const updatedCard = await cardApi.updateCard(cardId, {
-      content,
-      guestId: guestUser.guestId
-    })
+        return {
+          ...prevRoom,
+          columns: prevRoom.columns.map((col) =>
+            col.id === columnId
+              ? {
+                  ...col,
+                  cards: [...col.cards, newCard].sort((a, b) => a.sortOrder - b.sortOrder),
+                }
+              : col
+          ),
+        }
+      })
 
-    // Optimistic update: update card in local state
-    setRoom(prevRoom => {
-      if (!prevRoom) return prevRoom
-      
-      return {
-        ...prevRoom,
-        columns: prevRoom.columns.map(col => ({
-          ...col,
-          cards: col.cards.map(card => 
-            card.id === cardId
-              ? { ...card, content: updatedCard.content }
-              : card
-          )
-        }))
+      return newCard
+    },
+    [guestUser.guestId]
+  )
+
+  const handleUpdateCard = useCallback(
+    async (cardId: string, content: string) => {
+      if (!guestUser.guestId) {
+        throw new Error('User not authenticated')
       }
-    })
-  }, [guestUser.guestId])
 
-  const handleDeleteCard = useCallback(async (cardId: string) => {
-    if (!guestUser.guestId) {
-      throw new Error('User not authenticated')
-    }
+      const updatedCard = await cardApi.updateCard(cardId, {
+        content,
+        guestId: guestUser.guestId,
+      })
 
-    await cardApi.deleteCard(cardId, guestUser.guestId)
+      // Update UI after successful update
+      setRoom((prevRoom) => {
+        if (!prevRoom) return prevRoom
 
-    // Optimistic update: remove card from local state
-    setRoom(prevRoom => {
-      if (!prevRoom) return prevRoom
-      
-      return {
-        ...prevRoom,
-        columns: prevRoom.columns.map(col => ({
-          ...col,
-          cards: col.cards.filter(card => card.id !== cardId)
-        }))
+        return {
+          ...prevRoom,
+          columns: prevRoom.columns.map((col) => ({
+            ...col,
+            cards: col.cards.map((card) => (card.id === cardId ? { ...card, content: updatedCard.content } : card)),
+          })),
+        }
+      })
+    },
+    [guestUser.guestId]
+  )
+
+  const handleDeleteCard = useCallback(
+    async (cardId: string) => {
+      console.log('handleDeleteCard called with cardId:', cardId)
+      if (!guestUser.guestId) {
+        throw new Error('User not authenticated')
       }
-    })
-  }, [guestUser.guestId])
+
+      // Make API call first
+      await cardApi.deleteCard(cardId, guestUser.guestId)
+
+      // Only update UI after successful deletion
+      setRoom((prevRoom) => {
+        if (!prevRoom) return prevRoom
+
+        return {
+          ...prevRoom,
+          columns: prevRoom.columns.map((col) => ({
+            ...col,
+            cards: col.cards.filter((card) => card.id !== cardId),
+          })),
+        }
+      })
+    },
+    [guestUser.guestId]
+  )
 
   if (isLoading) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
-          <p className='text-gray-600'>Loading retrospective...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading retrospective...</p>
         </div>
       </div>
     )
@@ -130,17 +137,15 @@ export function RetroPage() {
 
   if (error || !room) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <Card className='max-w-md'>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md">
           <CardHeader>
-            <CardTitle className='text-red-600'>Room Not Found</CardTitle>
+            <CardTitle className="text-red-600">Room Not Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className='text-gray-600 mb-4'>
-              {error || 'The requested retrospective could not be found.'}
-            </p>
+            <p className="text-gray-600 mb-4">{error || 'The requested retrospective could not be found.'}</p>
             <Button asChild>
-              <Link to='/'>Back to Home</Link>
+              <Link to="/">Back to Home</Link>
             </Button>
           </CardContent>
         </Card>
@@ -149,56 +154,52 @@ export function RetroPage() {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 p-6'>
-      <div className='max-w-7xl mx-auto'>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className='mb-8'>
-          <div className='flex items-center gap-4 mb-4'>
-            <Button variant='ghost' size='sm' asChild>
-              <Link to='/'>
-                <ArrowLeft className='w-4 h-4 mr-2' />
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/">
+                <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Home
               </Link>
             </Button>
           </div>
-          
-          <div className='bg-white rounded-lg p-6 shadow-sm'>
-            <h1 className='text-3xl font-bold text-gray-900 mb-2'>
-              {room.name}
-            </h1>
-            {room.description && (
-              <p className='text-gray-600 mb-4'>{room.description}</p>
-            )}
-            
-            <div className='flex items-center gap-6 text-sm text-gray-500'>
-              <div className='flex items-center gap-2'>
-                <Users className='w-4 h-4' />
+
+          <div className="bg-white rounded-lg p-6 shadow-sm">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{room.name}</h1>
+            {room.description && <p className="text-gray-600 mb-4">{room.description}</p>}
+
+            <div className="flex items-center gap-6 text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
                 <span>{room.participants.length} participants</span>
               </div>
-              <div className='flex items-center gap-2'>
-                <Settings className='w-4 h-4' />
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
                 <span>Phase: {room.currentPhase}</span>
               </div>
-              <div className='flex items-center gap-2'>
-                <Clock className='w-4 h-4' />
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
                 <span>Created {new Date(room.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
-            
+
             {/* Participants */}
-            <div className='mt-4'>
-              <h3 className='text-sm font-medium text-gray-700 mb-2'>Participants:</h3>
-              <div className='flex flex-wrap gap-2'>
-                {room.participants.map(participant => {
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Participants:</h3>
+              <div className="flex flex-wrap gap-2">
+                {room.participants.map((participant) => {
                   const isCurrentUser = guestUser.userId === participant.id
                   return (
-                    <span 
+                    <span
                       key={participant.id}
                       className={`px-2 py-1 rounded-full text-xs ${
                         isCurrentUser
                           ? 'bg-green-100 text-green-800 ring-2 ring-green-300'
-                          : participant.role === 'facilitator' 
-                            ? 'bg-blue-100 text-blue-800' 
+                          : participant.role === 'facilitator'
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-700'
                       }`}
                     >
@@ -214,27 +215,26 @@ export function RetroPage() {
         </div>
 
         {/* Retro Columns */}
-        <div className={`grid gap-6 ${
-          room.columns.length === 3 ? 'lg:grid-cols-3' : 
-          room.columns.length === 4 ? 'lg:grid-cols-2 xl:grid-cols-4' :
-          'lg:grid-cols-2'
-        }`}>
+        <div
+          className={`grid gap-6 ${
+            room.columns.length === 3
+              ? 'lg:grid-cols-3'
+              : room.columns.length === 4
+                ? 'lg:grid-cols-2 xl:grid-cols-4'
+                : 'lg:grid-cols-2'
+          }`}
+        >
           {room.columns.map((column) => (
-            <Card key={column.id} className='h-fit'>
+            <Card key={column.id} className="h-fit">
               <CardHeader style={{ backgroundColor: `${column.color}15` }}>
-                <CardTitle 
-                  className='flex items-center gap-2'
-                  style={{ color: column.color }}
-                >
+                <CardTitle className="flex items-center gap-2" style={{ color: column.color }}>
                   {column.title}
                 </CardTitle>
-                {column.description && (
-                  <CardDescription>{column.description}</CardDescription>
-                )}
+                {column.description && <CardDescription>{column.description}</CardDescription>}
               </CardHeader>
-              <CardContent className='space-y-4'>
+              <CardContent className="space-y-4">
                 {/* Interactive Cards */}
-                <div className='space-y-3'>
+                <div className="space-y-3">
                   {column.cards.map((card) => (
                     <RetroCard
                       key={card.id}

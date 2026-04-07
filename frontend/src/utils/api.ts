@@ -40,11 +40,12 @@ class ApiClient {
         throw new Error(errorData.message || 'API request failed')
       }
 
-      const data: ApiResponse<T> = await response.json()
-      if (!data.data) {
-        throw new Error('No data received from API')
+      const responseData: ApiResponse<T> = await response.json()
+      if (!responseData.success) {
+        throw new Error(responseData.message || 'API request failed')
       }
-      return data.data
+      // For void responses (like DELETE), data will be undefined, which is correct for Promise<void>
+      return responseData.data as T
     } catch (error) {
       console.error('API request failed:', error)
       throw error
