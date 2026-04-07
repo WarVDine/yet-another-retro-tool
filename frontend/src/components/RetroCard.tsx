@@ -116,7 +116,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
       ref={cardRef}
       className={`
         relative group bg-white rounded-lg border-2 shadow-sm transition-all duration-200
-        ${card.isOwner ? 'cursor-pointer hover:shadow-md' : ''}
+        ${card.isOwner ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}
         ${isEditing ? 'ring-2 ring-blue-500 shadow-md' : 'border-gray-200'}
         ${disabled ? 'opacity-50' : ''}
       `}
@@ -124,7 +124,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
         borderLeftColor: columnColor,
         borderLeftWidth: '4px',
       }}
-      onClick={handleCardClick}
+      onClick={card.isOwner ? handleCardClick : undefined}
     >
       {/* Delete button - only visible for owned cards */}
       {card.isOwner && !disabled && (
@@ -166,18 +166,9 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
           </div>
         ) : (
           <div className='space-y-2'>
-            <p className='text-sm text-gray-900 whitespace-pre-wrap break-words'>
+            <p className={`text-sm text-gray-900 whitespace-pre-wrap break-words ${!card.isOwner ? 'blur-sm' : ''}`}>
               {card.content}
             </p>
-            
-            <div className='flex justify-between items-center text-xs text-gray-500'>
-              <span>
-                {card.isOwner ? 'You' : (card.authorName || 'Anonymous')}
-              </span>
-              <span>
-                {new Date(card.createdAt).toLocaleDateString()}
-              </span>
-            </div>
             
             {card.isOwner && !disabled && (
               <p className='text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity'>
