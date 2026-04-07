@@ -58,7 +58,16 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
 
   const handleSave = async () => {
     if (!content.trim()) {
-      setError('Card content cannot be empty')
+      // If content is empty, delete the card instead of showing an error
+      try {
+        setIsLoading(true)
+        await handleDelete()
+        // Card will be removed from UI by parent component
+      } catch (error) {
+        console.error('Failed to delete card:', error)
+        setError('Failed to delete card. Please try again.')
+        setIsLoading(false)
+      }
       return
     }
 
@@ -148,6 +157,8 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
               <span>{content.length}/500</span>
               <div className='flex gap-2'>
                 <span>Enter to save</span>
+                <span>•</span>
+                <span>Clear text + Enter to delete</span>
                 <span>•</span>
                 <span>Esc to cancel</span>
               </div>
