@@ -6,7 +6,6 @@ import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 interface UseRoomPollingOptions {
   roomId: string | null
   guestId: string | null
-  editingCardId?: string | null // Optional for future use
   enabled: boolean
   interval?: number // milliseconds, default 5000
   onUpdate?: (room: DetailedRoomResponse) => void
@@ -23,7 +22,6 @@ interface UseRoomPollingReturn {
 export function useRoomPolling({
   roomId,
   guestId,
-  editingCardId: _editingCardId, // Prefix with underscore to indicate intentionally unused
   enabled,
   interval = 5000,
   onUpdate,

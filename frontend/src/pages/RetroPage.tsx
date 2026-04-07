@@ -88,7 +88,6 @@ export function RetroPage() {
   const { isPolling, lastSyncTime, error: pollingError, manualRefresh } = useRoomPolling({
     roomId: id || null,
     guestId: guestUser.guestId,
-    editingCardId,
     enabled: !!room && !isLoading, // Only start polling after initial load
     interval: 5000, // 5 seconds
     onUpdate: handlePollingUpdate,
