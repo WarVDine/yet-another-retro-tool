@@ -24,43 +24,17 @@ export interface User {
   email: string
 }
 
-// API Response types
-export interface ApiResponse<T> {
-  success: boolean
-  data: T
-  message?: string
-}
-
-export interface ApiError {
-  success: false
-  error: string
-  message: string
-}
-
-// Room creation types
-export interface CreateRoomRequest {
-  name: string
-  description?: string
-  template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
-  facilitatorName: string
-}
-
-export interface RoomResponse {
-  id: string
-  name: string
-  description?: string
-  facilitatorCode: string
-  participantCode: string
-  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  maxVotesPerUser: number
-  columns: ColumnResponse[]
-  createdAt: string
-}
-
-export interface ColumnResponse {
-  id: string
-  title: string
-  description?: string
-  color: string
-  sortOrder: number
-}
+// Re-export shared types
+export type {
+  ApiResponse,
+  ApiError,
+  CreateRoomRequest,
+  RoomResponse,
+  ColumnResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  DetailedRoomResponse,
+  DetailedColumnResponse,
+  CardResponse,
+  ParticipantResponse
+} from '@yet-another-retro-tool/shared'

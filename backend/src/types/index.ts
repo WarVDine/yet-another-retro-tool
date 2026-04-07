@@ -72,30 +72,15 @@ export interface ApiError extends Error {
   code?: string
 }
 
-// Room creation types (from shared package)
-export interface CreateRoomRequest {
-  name: string
-  description?: string
-  template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
-  facilitatorName: string
-}
-
-export interface RoomResponse {
-  id: string
-  name: string
-  description?: string | undefined
-  facilitatorCode: string
-  participantCode: string
-  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  maxVotesPerUser: number
-  columns: ColumnResponse[]
-  createdAt: string
-}
-
-export interface ColumnResponse {
-  id: string
-  title: string
-  description?: string | undefined
-  color: string
-  sortOrder: number
-}
+// Re-export shared types for convenience
+export type {
+  CreateRoomRequest,
+  RoomResponse,
+  ColumnResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  DetailedRoomResponse,
+  DetailedColumnResponse,
+  CardResponse,
+  ParticipantResponse
+} from '@yet-another-retro-tool/shared'
