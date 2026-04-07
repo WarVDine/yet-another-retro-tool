@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 
 import { GuestUserProvider } from '@/contexts/GuestUserContext'
 import { ModalProvider } from '@/contexts/ModalContext'
+import { AuthGuard } from '@/components/AuthGuard'
 import { GuestUserModal } from '@/components/GuestUserModal'
 import { Header } from '@/components/Header'
 import { CreateRetroPage } from '@/pages/CreateRetroPage'
@@ -19,7 +20,7 @@ function AppContent() {
         <Route path='/retro/:id' element={<RetroPage />} />
       </Routes>
       
-      {/* Single modal that handles both create and edit modes */}
+      {/* Single modal that handles both create and edit modes - only for editing existing users */}
       <GuestUserModal />
     </div>
   )
@@ -29,7 +30,9 @@ export function App() {
   return (
     <GuestUserProvider>
       <ModalProvider>
-        <AppContent />
+        <AuthGuard>
+          <AppContent />
+        </AuthGuard>
       </ModalProvider>
     </GuestUserProvider>
   )

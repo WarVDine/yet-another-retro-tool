@@ -37,7 +37,10 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData: ApiError = await response.json()
-        throw new Error(errorData.message || 'API request failed')
+        const error = new Error(errorData.message || 'API request failed')
+        // Attach the HTTP status code to the error for better error handling
+        ;(error as any).status = response.status
+        throw error
       }
 
       const responseData: ApiResponse<T> = await response.json()
