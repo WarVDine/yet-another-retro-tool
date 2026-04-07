@@ -175,16 +175,23 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     >
       {/* Delete button - only visible for owned cards */}
       {card.isOwner && !disabled && (
-        <div className='absolute -top-2 -right-2'>
+        <div className='absolute -top-3 -right-3 z-10'>
           <Button
             variant='ghost'
             size='sm'
+            onClick={(e) => {
+              // Prevent card edit when clicking delete button
+              e.stopPropagation()
+              e.preventDefault()
+            }}
             onMouseDown={(e) => {
               e.stopPropagation()
+              e.preventDefault()
               startDelete()
             }}
             onMouseUp={(e) => {
               e.stopPropagation()
+              e.preventDefault()
               if (isDeleting && deleteProgress < 100) {
                 cancelDelete()
               }
@@ -197,24 +204,26 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
             }}
             onTouchStart={(e) => {
               e.stopPropagation()
+              e.preventDefault()
               startDelete()
             }}
             onTouchEnd={(e) => {
               e.stopPropagation()
+              e.preventDefault()
               if (isDeleting && deleteProgress < 100) {
                 cancelDelete()
               }
             }}
             disabled={isLoading}
             className={`
-              relative h-6 w-6 p-0 rounded-full overflow-hidden
+              relative h-8 w-8 p-0 rounded-full overflow-hidden shadow-lg
               ${isDeleting 
-                ? 'bg-red-600' 
-                : 'bg-red-500 hover:bg-red-600'
+                ? 'bg-red-600 ring-2 ring-red-200' 
+                : 'bg-red-500 hover:bg-red-600 hover:shadow-xl'
               }
               text-white
               ${isEditing || isLoading || isDeleting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-              transition-opacity duration-200
+              transition-all duration-200
             `}
             aria-label={isDeleting ? 'Hold to delete card' : 'Hold to delete card'}
             title='Hold to delete'
@@ -222,38 +231,43 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
             {/* Progress circle background */}
             {isDeleting && (
               <div className='absolute inset-0'>
-                <svg className='w-full h-full -rotate-90' viewBox='0 0 24 24'>
+                <svg className='w-full h-full -rotate-90' viewBox='0 0 32 32'>
+                  {/* Background circle */}
                   <circle
-                    cx='12'
-                    cy='12'
-                    r='10'
-                    stroke='rgba(255,255,255,0.3)'
-                    strokeWidth='2'
+                    cx='16'
+                    cy='16'
+                    r='14'
+                    stroke='rgba(255,255,255,0.2)'
+                    strokeWidth='3'
                     fill='none'
                   />
+                  {/* Progress circle */}
                   <circle
-                    cx='12'
-                    cy='12'
-                    r='10'
-                    stroke='white'
-                    strokeWidth='2'
+                    cx='16'
+                    cy='16'
+                    r='14'
+                    stroke='#fbbf24'
+                    strokeWidth='3'
                     fill='none'
-                    strokeDasharray={`${2 * Math.PI * 10}`}
-                    strokeDashoffset={`${2 * Math.PI * 10 * (1 - deleteProgress / 100)}`}
-                    className='transition-all duration-75 ease-linear'
+                    strokeDasharray={`${2 * Math.PI * 14}`}
+                    strokeDashoffset={`${2 * Math.PI * 14 * (1 - deleteProgress / 100)}`}
+                    className='transition-all duration-75 ease-linear drop-shadow-sm'
+                    style={{
+                      filter: 'drop-shadow(0 0 2px rgba(251, 191, 36, 0.5))'
+                    }}
                   />
                 </svg>
               </div>
             )}
             
             {/* X icon */}
-            <X className={`h-3 w-3 relative z-10 ${isDeleting ? 'animate-pulse' : ''}`} />
+            <X className={`h-4 w-4 relative z-10 ${isDeleting ? 'animate-pulse' : ''}`} />
           </Button>
           
           {/* Hold instruction tooltip */}
           {isDeleting && (
-            <div className='absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap'>
-              <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg'>
+            <div className='absolute -bottom-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap z-20'>
+              <div className='bg-gray-900 text-white text-xs px-3 py-1 rounded-md shadow-lg'>
                 Hold to delete...
               </div>
             </div>
