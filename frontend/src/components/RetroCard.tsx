@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { DeleteButton } from '@/components/DeleteButton'
 import { CardResponse } from '@yet-another-retro-tool/shared'
 
 interface RetroCardProps {
@@ -18,12 +17,8 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
   const [content, setContent] = useState(card.content)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteProgress, setDeleteProgress] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const deleteIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -103,60 +98,9 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     }
   }
 
-  const startDelete = useCallback(() => {
-    if (!card.isOwner || disabled || isDeleting) return
-
-    setIsDeleting(true)
-    setDeleteProgress(0)
-    setError(null)
-
-    // Progress animation
-    const startTime = Date.now()
-    const duration = 3000 // 3 seconds hold time
-    
-    deleteIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTime
-      const progress = Math.min((elapsed / duration) * 100, 100)
-      setDeleteProgress(progress)
-    }, 16) // ~60fps
-
-    // Auto-delete after hold duration
-    deleteTimeoutRef.current = setTimeout(async () => {
-      try {
-        setIsLoading(true)
-        await onDelete(card.id)
-        // Card will disappear when parent component updates state after successful API call
-        // Reset local state in case component doesn't unmount immediately
-        setIsLoading(false)
-        cancelDelete()
-      } catch (error) {
-        console.error('Failed to delete card:', error)
-        setError('Failed to delete card. Please try again.')
-        setIsLoading(false)
-        cancelDelete()
-      }
-    }, duration)
-  }, [card.isOwner, card.id, disabled, isDeleting, onDelete])
-
-  const cancelDelete = useCallback(() => {
-    if (deleteTimeoutRef.current) {
-      clearTimeout(deleteTimeoutRef.current)
-      deleteTimeoutRef.current = null
-    }
-    if (deleteIntervalRef.current) {
-      clearInterval(deleteIntervalRef.current)
-      deleteIntervalRef.current = null
-    }
-    setIsDeleting(false)
-    setDeleteProgress(0)
-  }, [])
-
-  // Cleanup timeouts on unmount
-  useEffect(() => {
-    return () => {
-      cancelDelete()
-    }
-  }, [cancelDelete])
+  const handleDelete = async () => {
+    await onDelete(card.id)
+  }
 
   return (
     <div
@@ -175,104 +119,11 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     >
       {/* Delete button - only visible for owned cards */}
       {card.isOwner && !disabled && (
-        <div className='absolute -top-3 -right-3 z-10'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={(e) => {
-              // Prevent card edit when clicking delete button
-              e.stopPropagation()
-              e.preventDefault()
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              startDelete()
-            }}
-            onMouseUp={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              if (isDeleting && deleteProgress < 100) {
-                cancelDelete()
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.stopPropagation()
-              if (isDeleting && deleteProgress < 100) {
-                cancelDelete()
-              }
-            }}
-            onTouchStart={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              startDelete()
-            }}
-            onTouchEnd={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              if (isDeleting && deleteProgress < 100) {
-                cancelDelete()
-              }
-            }}
-            disabled={isLoading}
-            className={`
-              relative h-8 w-8 p-0 rounded-full overflow-hidden shadow-lg
-              ${isDeleting 
-                ? 'bg-red-600 ring-2 ring-red-200' 
-                : 'bg-red-500 hover:bg-red-600 hover:shadow-xl'
-              }
-              text-white
-              ${isEditing || isLoading || isDeleting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-              transition-all duration-200
-            `}
-            aria-label={isDeleting ? 'Hold to delete card' : 'Hold to delete card'}
-            title='Hold to delete'
-          >
-            {/* Progress circle background */}
-            {isDeleting && (
-              <div className='absolute inset-0'>
-                <svg className='w-full h-full -rotate-90' viewBox='0 0 32 32'>
-                  {/* Background circle */}
-                  <circle
-                    cx='16'
-                    cy='16'
-                    r='14'
-                    stroke='rgba(255,255,255,0.2)'
-                    strokeWidth='3'
-                    fill='none'
-                  />
-                  {/* Progress circle */}
-                  <circle
-                    cx='16'
-                    cy='16'
-                    r='14'
-                    stroke='#fbbf24'
-                    strokeWidth='3'
-                    fill='none'
-                    strokeDasharray={`${2 * Math.PI * 14}`}
-                    strokeDashoffset={`${2 * Math.PI * 14 * (1 - deleteProgress / 100)}`}
-                    className='transition-all duration-75 ease-linear drop-shadow-sm'
-                    style={{
-                      filter: 'drop-shadow(0 0 2px rgba(251, 191, 36, 0.5))'
-                    }}
-                  />
-                </svg>
-              </div>
-            )}
-            
-            {/* X icon */}
-            <X className={`h-4 w-4 relative z-10 ${isDeleting ? 'animate-pulse' : ''}`} />
-          </Button>
-          
-          {/* Hold instruction tooltip */}
-          {isDeleting && (
-            <div className='absolute -bottom-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap z-20'>
-              <div className='bg-gray-900 text-white text-xs px-3 py-1 rounded-md shadow-lg'>
-                Hold to delete...
-              </div>
-            </div>
-          )}
-        </div>
+        <DeleteButton
+          onDelete={handleDelete}
+          disabled={isLoading}
+          className={`${isEditing || isLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200`}
+        />
       )}
 
       <div className='p-3'>
