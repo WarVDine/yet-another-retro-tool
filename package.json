@@ -9,7 +9,9 @@
     "shared"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently --names \"BACKEND,FRONTEND\" --prefix-colors \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend:wait\"",
+    "dev:all": "npm run db:up && npm run dev",
+    "dev:frontend:wait": "echo '⏳ Waiting for backend to be ready...' && wait-on http://localhost:5000/api/health && echo '✅ Backend ready! Starting frontend...' && npm run dev:frontend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
@@ -41,7 +43,8 @@
     "drizzle-orm": "^0.45.2",
     "eslint": "^8.57.0",
     "kill-port": "^2.0.1",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "wait-on": "^9.0.4"
   },
   "repository": {
     "type": "git",
