@@ -5,10 +5,12 @@ import { ArrowLeft, Users, Clock, Settings } from 'lucide-react'
 import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi } from '@/utils/api'
 
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()
+  const { guestUser } = useGuestUser()
   const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -103,19 +105,25 @@ export function RetroPage() {
             <div className='mt-4'>
               <h3 className='text-sm font-medium text-gray-700 mb-2'>Participants:</h3>
               <div className='flex flex-wrap gap-2'>
-                {room.participants.map(participant => (
-                  <span 
-                    key={participant.id}
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      participant.role === 'facilitator' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {participant.displayName}
-                    {participant.role === 'facilitator' && ' (Facilitator)'}
-                  </span>
-                ))}
+                {room.participants.map(participant => {
+                  const isCurrentUser = guestUser.userId === participant.id
+                  return (
+                    <span 
+                      key={participant.id}
+                      className={`px-2 py-1 rounded-full text-xs ${
+                        isCurrentUser
+                          ? 'bg-green-100 text-green-800 ring-2 ring-green-300'
+                          : participant.role === 'facilitator' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {participant.displayName}
+                      {participant.role === 'facilitator' && ' (Facilitator)'}
+                      {isCurrentUser && ' (You)'}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -160,7 +168,12 @@ export function RetroPage() {
                         <p className='text-sm'>{card.content}</p>
                         <div className='flex items-center justify-between mt-2'>
                           <span className='text-xs text-gray-500'>
-                            {card.isAnonymous ? 'Anonymous' : card.authorName}
+                            {card.isAnonymous 
+                              ? 'Anonymous' 
+                              : card.authorName === guestUser.displayName 
+                                ? 'You' 
+                                : card.authorName
+                            }
                           </span>
                           <span className='text-xs text-gray-400'>
                             {new Date(card.createdAt).toLocaleDateString()}

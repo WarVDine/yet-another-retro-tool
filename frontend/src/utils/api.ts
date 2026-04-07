@@ -6,6 +6,7 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
   DetailedRoomResponse,
+  GuestUserResponse,
 } from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -71,6 +72,21 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient(API_BASE_URL)
+
+// Guest user API methods
+export const guestUserApi = {
+  createGuestUser: async (displayName: string): Promise<GuestUserResponse> => {
+    return apiClient.post<GuestUserResponse>('/users/guest', { displayName })
+  },
+
+  getGuestUser: async (guestId: string): Promise<GuestUserResponse> => {
+    return apiClient.get<GuestUserResponse>(`/users/guest/${guestId}`)
+  },
+
+  updateGuestUser: async (guestId: string, displayName: string): Promise<GuestUserResponse> => {
+    return apiClient.put<GuestUserResponse>(`/users/guest/${guestId}`, { displayName })
+  },
+}
 
 // Room API methods
 export const roomApi = {

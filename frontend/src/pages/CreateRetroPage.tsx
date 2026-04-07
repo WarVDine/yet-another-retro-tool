@@ -7,24 +7,31 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi } from '@/utils/api'
 
 export function CreateRetroPage() {
   const navigate = useNavigate()
+  const { guestUser } = useGuestUser()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     template: 'classic' as const,
-    facilitatorName: '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name.trim() || !formData.facilitatorName.trim()) {
-      setError('Please fill in all required fields')
+    if (!formData.name.trim()) {
+      setError('Please enter a room name')
+      return
+    }
+
+    // Guest user is guaranteed to exist due to the modal
+    if (!guestUser.guestId) {
+      setError('User profile not ready. Please refresh the page.')
       return
     }
 
@@ -36,7 +43,7 @@ export function CreateRetroPage() {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         template: formData.template,
-        facilitatorName: formData.facilitatorName.trim(),
+        guestId: guestUser.guestId
       })
 
       // Navigate to the created room
@@ -79,6 +86,12 @@ export function CreateRetroPage() {
 
               {/* Basic Info */}
               <div className="space-y-4">
+                {guestUser.displayName && (
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm">
+                    Creating as facilitator: <strong>{guestUser.displayName}</strong>
+                  </div>
+                )}
+
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium mb-2">
                     Retrospective Name *
@@ -88,20 +101,6 @@ export function CreateRetroPage() {
                     value={formData.name}
                     onChange={(e) => updateFormData('name', e.target.value)}
                     placeholder="Sprint 23 Retrospective"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="facilitatorName" className="block text-sm font-medium mb-2">
-                    Your Name (Facilitator) *
-                  </label>
-                  <Input
-                    id="facilitatorName"
-                    value={formData.facilitatorName}
-                    onChange={(e) => updateFormData('facilitatorName', e.target.value)}
-                    placeholder="Your name"
                     required
                     disabled={isLoading}
                   />

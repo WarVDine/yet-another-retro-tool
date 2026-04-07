@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Template {
   id: string
@@ -50,10 +44,7 @@ interface TemplateSelectorProps {
   onTemplateChange: (templateId: string) => void
 }
 
-export function TemplateSelector({
-  selectedTemplate,
-  onTemplateChange,
-}: TemplateSelectorProps) {
+export function TemplateSelector({ selectedTemplate, onTemplateChange }: TemplateSelectorProps) {
   const handleKeyDown = (event: React.KeyboardEvent, templateId: string) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
@@ -63,14 +54,8 @@ export function TemplateSelector({
 
   return (
     <fieldset>
-      <legend className="text-lg font-medium text-gray-900 mb-4">
-        Choose a Template
-      </legend>
-      <div
-        className="grid md:grid-cols-2 gap-4"
-        role="radiogroup"
-        aria-labelledby="template-legend"
-      >
+      <legend className="text-lg font-medium text-gray-900 mb-4">Choose a Template</legend>
+      <div className="grid md:grid-cols-2 gap-4" role="radiogroup" aria-labelledby="template-legend">
         {TEMPLATES.map((template) => (
           <Card
             key={template.id}
@@ -91,10 +76,7 @@ export function TemplateSelector({
               className="outline-none"
             >
               <CardHeader className="pb-3">
-                <CardTitle
-                  id={`template-${template.id}-title`}
-                  className="flex items-center gap-2 text-base"
-                >
+                <CardTitle id={`template-${template.id}-title`} className="flex items-center gap-2 text-base">
                   <div
                     className={`w-3 h-3 rounded-full ${
                       template.color === 'blue'
@@ -108,20 +90,14 @@ export function TemplateSelector({
                   />
                   {template.name}
                 </CardTitle>
-                <CardDescription
-                  id={`template-${template.id}-description`}
-                  className="text-sm"
-                >
+                <CardDescription id={`template-${template.id}-description`} className="text-sm">
                   {template.description}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-1">
                   {template.columns.map((column, index) => (
-                    <div
-                      key={index}
-                      className="text-sm text-gray-600 flex items-center"
-                    >
+                    <div key={index} className="text-sm text-gray-600 flex items-center">
                       <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2 flex-shrink-0"></span>
                       {column}
                     </div>

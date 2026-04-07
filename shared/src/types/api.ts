@@ -38,7 +38,7 @@ export interface CreateRoomRequest {
   name: string
   description?: string
   template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
-  facilitatorName: string
+  guestId: string // Required guest ID - name comes from guest user
 }
 
 export interface RoomResponse {
@@ -64,13 +64,29 @@ export interface ColumnResponse {
 // Room joining types
 export interface JoinRoomRequest {
   code: string
-  participantName: string
+  guestId: string // Required guest ID - name comes from guest user
 }
 
 export interface JoinRoomResponse {
   roomId: string
   role: 'facilitator' | 'participant'
   participantId: string
+}
+
+// Guest user management types
+export interface CreateGuestUserRequest {
+  displayName: string
+}
+
+export interface GuestUserResponse {
+  userId: string
+  guestId: string
+  displayName: string
+  createdAt: string
+}
+
+export interface UpdateGuestUserRequest {
+  displayName: string
 }
 
 // Extended room response with participants and cards
