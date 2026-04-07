@@ -5,22 +5,27 @@ import { Plus, Users, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi } from '@/utils/api'
 
 export function HomePage() {
   const navigate = useNavigate()
-  const [joinForm, setJoinForm] = useState({
-    code: '',
-    participantName: '',
-  })
+  const { guestUser } = useGuestUser()
+  const [sessionCode, setSessionCode] = useState('')
   const [isJoining, setIsJoining] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!joinForm.code.trim() || !joinForm.participantName.trim()) {
-      setJoinError('Please enter both code and your name')
+    if (!sessionCode.trim()) {
+      setJoinError('Please enter a session code')
+      return
+    }
+
+    // Guest user is guaranteed to exist due to the modal
+    if (!guestUser.guestId) {
+      setJoinError('User profile not ready. Please refresh the page.')
       return
     }
 
@@ -29,8 +34,8 @@ export function HomePage() {
 
     try {
       const result = await roomApi.joinRoom({
-        code: joinForm.code.trim(),
-        participantName: joinForm.participantName.trim(),
+        code: sessionCode.trim(),
+        guestId: guestUser.guestId
       })
 
       navigate(`/retro/${result.roomId}`)
@@ -92,8 +97,8 @@ export function HomePage() {
                   <Input
                     id="session-code"
                     placeholder="Enter session code"
-                    value={joinForm.code}
-                    onChange={(e) => setJoinForm((prev) => ({ ...prev, code: e.target.value }))}
+                    value={sessionCode}
+                    onChange={(e) => setSessionCode(e.target.value)}
                     disabled={isJoining}
                     aria-describedby="session-code-help"
                   />
@@ -102,29 +107,18 @@ export function HomePage() {
                   </p>
                 </div>
 
-                <div>
-                  <label htmlFor="participant-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Your Name
-                  </label>
-                  <Input
-                    id="participant-name"
-                    placeholder="Your name"
-                    value={joinForm.participantName}
-                    onChange={(e) =>
-                      setJoinForm((prev) => ({
-                        ...prev,
-                        participantName: e.target.value,
-                      }))
-                    }
-                    disabled={isJoining}
-                    aria-describedby="participant-name-help"
-                  />
-                  <p id="participant-name-help" className="text-xs text-gray-500 mt-1">
-                    How you'll appear to other participants
-                  </p>
-                </div>
+                {guestUser.displayName && (
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm">
+                    Joining as: <strong>{guestUser.displayName}</strong>
+                  </div>
+                )}
 
-                <Button type="submit" variant="outline" className="w-full" disabled={isJoining}>
+                <Button 
+                  type="submit" 
+                  variant="outline" 
+                  className="w-full cursor-pointer" 
+                  disabled={isJoining || !sessionCode.trim()}
+                >
                   {isJoining && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Join Session
                 </Button>

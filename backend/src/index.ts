@@ -8,6 +8,7 @@ import { errorHandler } from '@/middleware/errorHandler'
 import { notFound } from '@/middleware/notFound'
 import { healthRouter } from '@/routes/health'
 import { roomRouter } from '@/routes/rooms'
+import { userRouter } from '@/routes/users'
 
 // Load environment variables
 dotenv.config()
@@ -34,6 +35,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 // Routes
 app.use(`${API_PREFIX}/health`, healthRouter)
 app.use(`${API_PREFIX}/rooms`, roomRouter)
+app.use(`${API_PREFIX}/users`, userRouter)
 
 // Error handling middleware (must be last)
 app.use(notFound)

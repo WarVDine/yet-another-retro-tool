@@ -30,12 +30,17 @@
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:seed": "npm run db:seed --workspace=backend",
     "db:reset": "npm run db:reset --workspace=backend",
-    "db:studio": "npm run db:studio --workspace=backend"
+    "db:studio": "npm run db:studio --workspace=backend",
+    "kill-port": "npx kill-port",
+    "kill-frontend": "npx kill-port 3000",
+    "kill-backend": "npx kill-port 5000",
+    "kill-all": "npx kill-port 3000 5000"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "drizzle-orm": "^0.45.2",
     "eslint": "^8.57.0",
+    "kill-port": "^2.0.1",
     "prettier": "^3.2.5"
   },
   "repository": {
