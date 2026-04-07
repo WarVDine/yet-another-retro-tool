@@ -9,10 +9,12 @@ interface RetroCardProps {
   columnColor: string
   onUpdate: (cardId: string, content: string) => Promise<void>
   onDelete: (cardId: string) => Promise<void>
+  onEditStart?: (cardId: string) => void
+  onEditEnd?: () => void
   disabled?: boolean
 }
 
-export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = false }: RetroCardProps) {
+export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, onEditEnd, disabled = false }: RetroCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(card.content)
   const [isLoading, setIsLoading] = useState(false)
@@ -53,6 +55,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     if (card.isOwner && !disabled && !isEditing) {
       setIsEditing(true)
       setError(null)
+      onEditStart?.(card.id)
     }
   }
 
@@ -74,6 +77,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     if (content.trim() === card.content) {
       // No changes made
       setIsEditing(false)
+      onEditEnd?.()
       return
     }
 
@@ -83,6 +87,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
     try {
       await onUpdate(card.id, content.trim())
       setIsEditing(false)
+      onEditEnd?.()
     } catch (error) {
       console.error('Failed to update card:', error)
       setError('Failed to save changes. Please try again.')
@@ -103,6 +108,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, disabled = fa
       e.preventDefault()
       setContent(card.content)
       setIsEditing(false)
+      onEditEnd?.()
       setError(null)
     }
   }

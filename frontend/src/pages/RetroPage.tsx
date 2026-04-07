@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Users, Clock, Settings, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Users, Clock, Settings, Copy, Check, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 
 import { DetailedRoomResponse, CardResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { RetroCard } from '@/components/RetroCard'
 import { AddCardButton } from '@/components/AddCardButton'
 import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi, cardApi } from '@/utils/api'
+import { useRoomPolling } from '@/hooks/useRoomPolling'
 
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()
@@ -17,6 +18,7 @@ export function RetroPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isCopied, setIsCopied] = useState(false)
+  const [editingCardId, setEditingCardId] = useState<string | null>(null)
 
   const loadRoom = useCallback(async () => {
     if (!id) return
@@ -36,6 +38,65 @@ export function RetroPage() {
   useEffect(() => {
     loadRoom()
   }, [loadRoom])
+
+  // Smart merging function for polling updates
+  const handlePollingUpdate = useCallback((polledRoom: DetailedRoomResponse) => {
+    setRoom((currentRoom) => {
+      if (!currentRoom) return polledRoom
+
+      // If no card is being edited, just use the polled data
+      if (!editingCardId) {
+        return polledRoom
+      }
+
+      // Find the editing card in current room to preserve its content
+      let editingCardContent: string | undefined
+      for (const column of currentRoom.columns) {
+        const editingCard = column.cards.find(card => card.id === editingCardId)
+        if (editingCard) {
+          editingCardContent = editingCard.content
+          break
+        }
+      }
+
+      // If we couldn't find the editing card, just use polled data
+      if (editingCardContent === undefined) {
+        return polledRoom
+      }
+
+      // Merge polled data while preserving editing card content
+      return {
+        ...polledRoom,
+        columns: polledRoom.columns.map(column => ({
+          ...column,
+          cards: column.cards.map(card => {
+            if (card.id === editingCardId) {
+              // Preserve the content being edited, but allow other metadata updates
+              return {
+                ...card,
+                content: editingCardContent,
+              }
+            }
+            return card
+          })
+        }))
+      }
+    })
+  }, [editingCardId])
+
+  // Set up room polling for real-time updates
+  const { isPolling, lastSyncTime, error: pollingError, manualRefresh } = useRoomPolling({
+    roomId: id || null,
+    guestId: guestUser.guestId,
+    editingCardId,
+    enabled: !!room && !isLoading, // Only start polling after initial load
+    interval: 5000, // 5 seconds
+    onUpdate: handlePollingUpdate,
+    onError: (error) => {
+      console.error('Polling error:', error)
+      // Don't set the main error state for polling errors to avoid disrupting UX
+    }
+  })
 
   // Card CRUD handlers with optimistic updates
   const handleCreateCard = useCallback(
@@ -124,6 +185,15 @@ export function RetroPage() {
     },
     [guestUser.guestId]
   )
+
+  // Editing state handlers
+  const handleCardEditStart = useCallback((cardId: string) => {
+    setEditingCardId(cardId)
+  }, [])
+
+  const handleCardEditEnd = useCallback(() => {
+    setEditingCardId(null)
+  }, [])
 
   const handleCopyJoinCode = useCallback(async () => {
     if (!room?.participantCode) return
@@ -243,6 +313,51 @@ export function RetroPage() {
               </div>
             </div>
 
+            {/* Sync Status Section */}
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <div className="flex items-center gap-4">
+                {/* Sync Status Indicator */}
+                <div className="flex items-center gap-2">
+                  {pollingError ? (
+                    <>
+                      <WifiOff className="w-4 h-4 text-red-500" />
+                      <span className="text-red-600">Connection issue</span>
+                    </>
+                  ) : isPolling ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                      <span className="text-blue-600">Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="w-4 h-4 text-green-500" />
+                      <span className="text-green-600">Connected</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Last Sync Time */}
+                {lastSyncTime && (
+                  <div className="text-gray-500">
+                    Last sync: {lastSyncTime.toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+
+              {/* Manual Refresh Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={manualRefresh}
+                disabled={isPolling}
+                className="text-gray-600 hover:text-gray-800"
+                title="Refresh now"
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${isPolling ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+
             {/* Participants */}
             <div className="mt-4">
               <h3 className="text-sm font-medium text-gray-700 mb-2">Participants:</h3>
@@ -299,6 +414,8 @@ export function RetroPage() {
                       columnColor={column.color}
                       onUpdate={handleUpdateCard}
                       onDelete={handleDeleteCard}
+                      onEditStart={handleCardEditStart}
+                      onEditEnd={handleCardEditEnd}
                       disabled={!guestUser.guestId}
                     />
                   ))}
