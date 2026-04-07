@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, Clock, Settings, Copy, Check, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 
 import { DetailedRoomResponse, CardResponse } from '@yet-another-retro-tool/shared'
@@ -13,6 +13,7 @@ import { useRoomPolling } from '@/hooks/useRoomPolling'
 
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { guestUser } = useGuestUser()
   const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -29,6 +30,20 @@ export function RetroPage() {
       const roomData = await roomApi.getRoomById(id, guestUser.guestId || undefined)
       setRoom(roomData)
     } catch (error) {
+      // Check if it's a 403 (not a participant) or 404 (room not found)
+      const errorStatus = (error as any)?.status
+      
+      if (errorStatus === 403) {
+        // User is not a participant - redirect to homepage with message
+        navigate('/?error=not-participant', { replace: true })
+        return
+      } else if (errorStatus === 404) {
+        // Room not found - redirect to homepage with message
+        navigate('/?error=room-not-found', { replace: true })
+        return
+      }
+      
+      // For other errors, show error state on current page
       setError(error instanceof Error ? error.message : 'Failed to load room')
     } finally {
       setIsLoading(false)
