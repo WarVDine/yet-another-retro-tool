@@ -6,6 +6,7 @@ import morgan from 'morgan'
 
 import { errorHandler } from '@/middleware/errorHandler'
 import { notFound } from '@/middleware/notFound'
+import { cardRouter } from '@/routes/cards'
 import { healthRouter } from '@/routes/health'
 import { roomRouter } from '@/routes/rooms'
 import { userRouter } from '@/routes/users'
@@ -33,6 +34,7 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Routes
+app.use(`${API_PREFIX}/cards`, cardRouter)
 app.use(`${API_PREFIX}/health`, healthRouter)
 app.use(`${API_PREFIX}/rooms`, roomRouter)
 app.use(`${API_PREFIX}/users`, userRouter)

@@ -122,6 +122,25 @@ export interface CardResponse {
   createdAt: string
 }
 
+// Card CRUD types
+export interface CreateCardRequest {
+  columnId: string
+  content: string
+  guestId: string
+}
+
+export interface UpdateCardRequest {
+  content: string
+  guestId: string
+}
+
+export interface CardDetailResponse extends CardResponse {
+  columnId: string
+  authorId: string
+  updatedAt: string
+  isOwner?: boolean // Frontend-only flag for ownership indication
+}
+
 export interface ParticipantResponse {
   id: string
   displayName: string

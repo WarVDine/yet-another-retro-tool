@@ -204,6 +204,7 @@ export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<Jo
 
 export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
   const { id } = req.params
+  const { guestId } = req.query as { guestId?: string }
 
   if (!id) {
     res.status(400).json({
@@ -215,6 +216,20 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
   }
 
   try {
+    // Resolve current user if guestId is provided (for ownership flags)
+    let currentUserId: string | null = null
+    if (guestId) {
+      try {
+        const user = await db.query.users.findFirst({
+          where: eq(users.guestId, guestId),
+        })
+        currentUserId = user?.id || null
+      } catch (error) {
+        // If guest ID is invalid, continue without ownership flags
+        console.warn('Invalid guest ID provided for room lookup:', guestId)
+      }
+    }
+
     // Load room with all related data using Drizzle relations
     const room = await db.query.rooms.findFirst({
       where: eq(rooms.id, id),
@@ -223,7 +238,7 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
           orderBy: [columns.sortOrder],
           with: {
             cards: {
-              orderBy: [columns.sortOrder],
+              orderBy: [cards.sortOrder], // Fix: use cards.sortOrder instead of columns.sortOrder
               with: {
                 author: true,
               },
@@ -271,6 +286,8 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
             authorName: card.isAnonymous ? undefined : card.author.displayName,
             sortOrder: card.sortOrder,
             createdAt: card.createdAt.toISOString(),
+            // Add ownership flag for frontend (only if currentUserId is available)
+            ...(currentUserId && { isOwner: currentUserId === card.authorId }),
           })),
         })),
         participants: room.participants.map((p) => ({
