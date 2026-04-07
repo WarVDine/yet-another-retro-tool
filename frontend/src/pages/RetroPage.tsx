@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Users, Clock, Settings } from 'lucide-react'
 
-import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
+import { DetailedRoomResponse, CardResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { RetroCard } from '@/components/RetroCard'
+import { AddCardButton } from '@/components/AddCardButton'
 import { useGuestUser } from '@/contexts/GuestUserContext'
-import { roomApi } from '@/utils/api'
+import { roomApi, cardApi } from '@/utils/api'
 
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()
@@ -15,23 +17,105 @@ export function RetroPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadRoom = useCallback(async () => {
     if (!id) return
     
-    const loadRoom = async () => {
-      try {
-        setIsLoading(true)
-        const roomData = await roomApi.getRoomById(id)
-        setRoom(roomData)
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to load room')
-      } finally {
-        setIsLoading(false)
-      }
+    try {
+      setIsLoading(true)
+      // Pass guestId to get ownership flags for cards
+      const roomData = await roomApi.getRoomById(id, guestUser.guestId || undefined)
+      setRoom(roomData)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load room')
+    } finally {
+      setIsLoading(false)
     }
-    
+  }, [id, guestUser.guestId])
+
+  useEffect(() => {
     loadRoom()
-  }, [id])
+  }, [loadRoom])
+
+  // Card CRUD handlers with optimistic updates
+  const handleCreateCard = useCallback(async (columnId: string, content: string): Promise<CardResponse> => {
+    if (!guestUser.guestId) {
+      throw new Error('User not authenticated')
+    }
+
+    const newCard = await cardApi.createCard({
+      columnId,
+      content,
+      guestId: guestUser.guestId
+    })
+
+    // Optimistic update: add card to local state
+    setRoom(prevRoom => {
+      if (!prevRoom) return prevRoom
+      
+      return {
+        ...prevRoom,
+        columns: prevRoom.columns.map(col => 
+          col.id === columnId
+            ? {
+                ...col,
+                cards: [...col.cards, newCard]
+              }
+            : col
+        )
+      }
+    })
+
+    return newCard
+  }, [guestUser.guestId])
+
+  const handleUpdateCard = useCallback(async (cardId: string, content: string) => {
+    if (!guestUser.guestId) {
+      throw new Error('User not authenticated')
+    }
+
+    const updatedCard = await cardApi.updateCard(cardId, {
+      content,
+      guestId: guestUser.guestId
+    })
+
+    // Optimistic update: update card in local state
+    setRoom(prevRoom => {
+      if (!prevRoom) return prevRoom
+      
+      return {
+        ...prevRoom,
+        columns: prevRoom.columns.map(col => ({
+          ...col,
+          cards: col.cards.map(card => 
+            card.id === cardId
+              ? { ...card, content: updatedCard.content }
+              : card
+          )
+        }))
+      }
+    })
+  }, [guestUser.guestId])
+
+  const handleDeleteCard = useCallback(async (cardId: string) => {
+    if (!guestUser.guestId) {
+      throw new Error('User not authenticated')
+    }
+
+    await cardApi.deleteCard(cardId, guestUser.guestId)
+
+    // Optimistic update: remove card from local state
+    setRoom(prevRoom => {
+      if (!prevRoom) return prevRoom
+      
+      return {
+        ...prevRoom,
+        columns: prevRoom.columns.map(col => ({
+          ...col,
+          cards: col.cards.filter(card => card.id !== cardId)
+        }))
+      }
+    })
+  }, [guestUser.guestId])
 
   if (isLoading) {
     return (
@@ -149,40 +233,31 @@ export function RetroPage() {
                 )}
               </CardHeader>
               <CardContent className='space-y-4'>
-                {/* Cards */}
-                {column.cards.length === 0 ? (
-                  <p className='text-gray-500 text-sm italic text-center py-4'>
-                    No cards yet
-                  </p>
-                ) : (
-                  <div className='space-y-2'>
-                    {column.cards.map((card) => (
-                      <div 
-                        key={card.id}
-                        className='p-3 rounded-lg border'
-                        style={{ 
-                          backgroundColor: `${column.color}08`,
-                          borderColor: `${column.color}40`
-                        }}
-                      >
-                        <p className='text-sm'>{card.content}</p>
-                        <div className='flex items-center justify-between mt-2'>
-                          <span className='text-xs text-gray-500'>
-                            {card.isAnonymous 
-                              ? 'Anonymous' 
-                              : card.authorName === guestUser.displayName 
-                                ? 'You' 
-                                : card.authorName
-                            }
-                          </span>
-                          <span className='text-xs text-gray-400'>
-                            {new Date(card.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* Interactive Cards */}
+                <div className='space-y-3'>
+                  {column.cards.map((card) => (
+                    <RetroCard
+                      key={card.id}
+                      card={card}
+                      columnColor={column.color}
+                      onUpdate={handleUpdateCard}
+                      onDelete={handleDeleteCard}
+                      disabled={!guestUser.guestId}
+                    />
+                  ))}
+                </div>
+
+                {/* Add Card Button */}
+                <AddCardButton
+                  columnId={column.id}
+                  columnColor={column.color}
+                  onCardCreated={(newCard) => {
+                    // This is handled by the optimistic update in handleCreateCard
+                    console.log('Card created:', newCard.id)
+                  }}
+                  onCreateCard={handleCreateCard}
+                  disabled={!guestUser.guestId}
+                />
               </CardContent>
             </Card>
           ))}
