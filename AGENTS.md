@@ -98,7 +98,11 @@ import express from 'express'
 - API Specs are required / highly recommended
 - Mermaid diagrams are highly recommended
 - Documentation should be understood by humans and AIs
-- Markdown files should ahdere to [common mark spec](https://spec.commonmark.org/0.31.2/)
+- Markdown files should adhere to [CommonMark spec](https://spec.commonmark.org/0.31.2/)
+- All markdown files must pass `markdownlint` validation before committing
+- Line length limit: 120 characters (except for code blocks, tables, and headings)
+- Lists must be surrounded by blank lines for readability
+- Files must end with exactly one newline character
 
 ### Accessibility Requirements
 
@@ -114,11 +118,16 @@ import express from 'express'
 
 ## Enforcement
 
-These rules should be followed by all contributors. Future enhancements may include:
+These rules should be followed by all contributors. Current enforcement tools:
 
-- ESLint rules for automatic enforcement
+- ESLint for TypeScript/JavaScript code quality
+- Markdownlint for documentation quality (`npx markdownlint docs/`)
 - Prettier configuration for consistent formatting
+
+Future enhancements may include:
+
 - Pre-commit hooks to validate compliance
+- Automated linting in CI/CD pipeline
 
 ## Questions or Clarifications
 
