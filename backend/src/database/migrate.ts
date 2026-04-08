@@ -15,6 +15,7 @@ async function runMigrations() {
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
+    ssl: process.env.NODE_ENV === 'production' ? true : false,
   })
 
   const db = drizzle(pool)
