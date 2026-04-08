@@ -5,18 +5,21 @@ import { CardGroupResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RetroCard } from '@/components/RetroCard'
+import { DraggableCard } from '@/components/DraggableCard'
 
 interface CardGroupProps {
   group: CardGroupResponse
   columnColor: string
   isFacilitator: boolean
   isGroupingPhase: boolean
+  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
   onUpdateGroup: (groupId: string, title: string) => Promise<void>
   onDeleteGroup: (groupId: string) => Promise<void>
   onUpdateCard: (cardId: string, content: string) => Promise<void>
   onDeleteCard: (cardId: string) => Promise<void>
   onCardEditStart?: (cardId: string) => void
   onCardEditEnd?: () => void
+  onDropCard?: (draggedCardId: string, targetCardId: string) => void
 }
 
 export function CardGroup({
@@ -24,12 +27,14 @@ export function CardGroup({
   columnColor,
   isFacilitator,
   isGroupingPhase,
+  currentPhase,
   onUpdateGroup,
   onDeleteGroup,
   onUpdateCard,
   onDeleteCard,
   onCardEditStart,
   onCardEditEnd,
+  onDropCard,
 }: CardGroupProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [title, setTitle] = useState(group.title || '')
@@ -160,16 +165,29 @@ export function CardGroup({
       {/* Group Cards */}
       <div className="space-y-2">
         {group.cards.map((card) => (
-          <RetroCard
+          <DraggableCard
             key={card.id}
-            card={card}
-            columnColor={columnColor}
-            onUpdate={onUpdateCard}
-            onDelete={onDeleteCard}
-            onEditStart={onCardEditStart}
-            onEditEnd={onCardEditEnd}
-            disabled={!isGroupingPhase} // Cards are disabled outside grouping phase
-          />
+            id={card.id}
+            type="card"
+            isFacilitator={isFacilitator}
+            isGroupingPhase={isGroupingPhase}
+            onDropCard={onDropCard || (() => {})}
+          >
+            <RetroCard
+              card={{
+                ...card,
+                // Override ownership display for non-writing phases
+                isOwner: (currentPhase === 'setup' || currentPhase === 'writing') ? (card.isOwner || false) : false
+              }}
+              columnColor={columnColor}
+              onUpdate={onUpdateCard}
+              onDelete={onDeleteCard}
+              onEditStart={onCardEditStart}
+              onEditEnd={onCardEditEnd}
+              disabled={!isGroupingPhase} // Cards are disabled outside grouping phase
+              showBlur={currentPhase === 'setup' || currentPhase === 'writing'}
+            />
+          </DraggableCard>
         ))}
       </div>
 

@@ -66,19 +66,30 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
-    // Verify all cards exist and belong to the specified column
+    // Verify all cards exist and belong to the same room
     const existingCards = await db.query.cards.findMany({
-      where: and(
-        inArray(cards.id, cardIds),
-        eq(cards.columnId, columnId)
-      ),
+      where: inArray(cards.id, cardIds),
+      with: {
+        column: true,
+      },
     })
 
     if (existingCards.length !== cardIds.length) {
       res.status(400).json({
         success: false,
         error: 'Validation Error',
-        message: 'Some cards do not exist or do not belong to the specified column',
+        message: 'Some cards do not exist',
+      })
+      return
+    }
+
+    // Verify all cards belong to the same room
+    const roomIds = [...new Set(existingCards.map(card => card.column.roomId))]
+    if (roomIds.length !== 1 || roomIds[0] !== column.roomId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'All cards must belong to the same room',
       })
       return
     }

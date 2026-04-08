@@ -11,6 +11,8 @@ import { RetroCard } from '@/components/RetroCard'
 import { DraggableCard } from '@/components/DraggableCard'
 import { AddCardButton } from '@/components/AddCardButton'
 import { CardGroup } from '@/components/CardGroup'
+import { DroppableColumn } from '@/components/DroppableColumn'
+import { DroppableGroup } from '@/components/DroppableGroup'
 import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi, cardApi, cardGroupApi } from '@/utils/api'
 import { useRoomPolling } from '@/hooks/useRoomPolling'
@@ -275,24 +277,63 @@ export function RetroPage() {
     if (!guestUser.guestId || !isFacilitator || room?.currentPhase !== 'grouping') return
 
     try {
-      // Find the cards to determine which column they're in
-      const draggedCard = room.columns.flatMap(col => col.cards).find(card => card.id === draggedCardId)
-      const targetCard = room.columns.flatMap(col => col.cards).find(card => card.id === targetCardId)
-      
-      if (!draggedCard || !targetCard) return
+      // Find the dragged card and check if it's currently in a group
+      let draggedCardCurrentGroup = null
+      for (const column of room.columns) {
+        for (const group of column.cardGroups) {
+          if (group.cards.some(card => card.id === draggedCardId)) {
+            draggedCardCurrentGroup = group
+            break
+          }
+        }
+        if (draggedCardCurrentGroup) break
+      }
 
-      // Find the column of the target card
-      const targetColumn = room.columns.find(col => col.cards.some(card => card.id === targetCardId))
-      if (!targetColumn) return
+      // Find the target card and its location
+      let targetCard = null
+      let targetColumn = null
+      let targetGroup = null
 
-      // Check if target card is already in a group
-      const existingGroup = targetColumn.cardGroups.find(group => 
-        group.cards.some(card => card.id === targetCardId)
-      )
+      // Check if target card is in a group
+      for (const column of room.columns) {
+        for (const group of column.cardGroups) {
+          const foundCard = group.cards.find(card => card.id === targetCardId)
+          if (foundCard) {
+            targetCard = foundCard
+            targetColumn = column
+            targetGroup = group
+            break
+          }
+        }
+        if (targetCard) break
+      }
 
-      if (existingGroup) {
+      // If not found in groups, check individual cards
+      if (!targetCard) {
+        for (const column of room.columns) {
+          const foundCard = column.cards.find(card => card.id === targetCardId)
+          if (foundCard) {
+            targetCard = foundCard
+            targetColumn = column
+            break
+          }
+        }
+      }
+
+      if (!targetCard || !targetColumn) return
+
+      // Step 1: Remove dragged card from its current group (if any)
+      if (draggedCardCurrentGroup) {
+        await cardGroupApi.removeCardsFromGroup(draggedCardCurrentGroup.id, {
+          cardIds: [draggedCardId],
+          guestId: guestUser.guestId
+        })
+      }
+
+      // Step 2: Add to new location
+      if (targetGroup) {
         // Add dragged card to existing group
-        await cardGroupApi.addCardsToGroup(existingGroup.id, {
+        await cardGroupApi.addCardsToGroup(targetGroup.id, {
           cardIds: [draggedCardId],
           guestId: guestUser.guestId
         })
@@ -310,7 +351,95 @@ export function RetroPage() {
       await loadRoom()
     } catch (error) {
       console.error('Failed to group cards:', error)
+      // Don't redirect user, just show a temporary error message
       setError('Failed to group cards. Please try again.')
+      setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
+    }
+  }, [guestUser.guestId, isFacilitator, room, loadRoom])
+
+  // Handler for dropping a card on a column (to move it out of a group)
+  const handleDropCardOnColumn = useCallback(async (draggedCardId: string, _targetColumnId: string) => {
+    if (!guestUser.guestId || !isFacilitator || room?.currentPhase !== 'grouping') return
+
+    try {
+      // Find the dragged card and its current group
+      let draggedCard = null
+      let currentGroup = null
+      
+      for (const column of room.columns) {
+        // Check if card is in a group
+        for (const group of column.cardGroups) {
+          const foundCard = group.cards.find(card => card.id === draggedCardId)
+          if (foundCard) {
+            draggedCard = foundCard
+            currentGroup = group
+            break
+          }
+        }
+        if (draggedCard) break
+      }
+
+      if (!draggedCard || !currentGroup) {
+        console.log('Card not found in any group, ignoring drop')
+        return
+      }
+
+      // Remove card from its current group
+      await cardGroupApi.removeCardsFromGroup(currentGroup.id, {
+        cardIds: [draggedCardId],
+        guestId: guestUser.guestId
+      })
+
+      // Reload room data
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to move card to column:', error)
+      // Don't redirect user, just show a temporary error message
+      setError('Failed to move card. Please try again.')
+      setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
+    }
+  }, [guestUser.guestId, isFacilitator, room, loadRoom])
+
+  // Handler for dropping a card on a group
+  const handleDropCardOnGroup = useCallback(async (draggedCardId: string, targetGroupId: string) => {
+    if (!guestUser.guestId || !isFacilitator || room?.currentPhase !== 'grouping') return
+
+    try {
+      // Find the dragged card and check if it's currently in a group
+      let draggedCardCurrentGroup = null
+      for (const column of room.columns) {
+        for (const group of column.cardGroups) {
+          if (group.cards.some(card => card.id === draggedCardId)) {
+            draggedCardCurrentGroup = group
+            break
+          }
+        }
+        if (draggedCardCurrentGroup) break
+      }
+
+      // Step 1: Remove dragged card from its current group (if any and if different from target)
+      if (draggedCardCurrentGroup && draggedCardCurrentGroup.id !== targetGroupId) {
+        await cardGroupApi.removeCardsFromGroup(draggedCardCurrentGroup.id, {
+          cardIds: [draggedCardId],
+          guestId: guestUser.guestId
+        })
+      }
+
+      // Step 2: Add dragged card to target group (only if not already in it)
+      if (!draggedCardCurrentGroup || draggedCardCurrentGroup.id !== targetGroupId) {
+        await cardGroupApi.addCardsToGroup(targetGroupId, {
+          cardIds: [draggedCardId],
+          guestId: guestUser.guestId
+        })
+      }
+
+      // Reload room data
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to add card to group:', error)
+      // Don't redirect user, just show a temporary error message
+      setError('Failed to add card to group. Please try again.')
+      setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
     }
   }, [guestUser.guestId, isFacilitator, room, loadRoom])
 
@@ -583,66 +712,87 @@ export function RetroPage() {
                 {column.description && <CardDescription>{column.description}</CardDescription>}
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Interactive Cards (not in groups) */}
-                <div className="space-y-3">
-                  {column.cards
-                    .filter(card => !column.cardGroups.some(group => 
-                      group.cards.some(groupCard => groupCard.id === card.id)
-                    ))
-                    .map((card) => (
-                    <DraggableCard
-                      key={card.id}
-                      id={card.id}
-                      type="card"
-                      isFacilitator={isFacilitator}
-                      isGroupingPhase={room.currentPhase === 'grouping'}
-                      onDropCard={handleDropCard}
-                    >
-                      <RetroCard
-                        card={card}
-                        columnColor={column.color}
-                        onUpdate={handleUpdateCard}
-                        onDelete={handleDeleteCard}
-                        onEditStart={handleCardEditStart}
-                        onEditEnd={handleCardEditEnd}
-                        disabled={!guestUser.guestId || (room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing')}
-                      />
-                    </DraggableCard>
-                  ))}
-                </div>
-
-                {/* Card Groups */}
-                {column.cardGroups && column.cardGroups.length > 0 && (
+                <DroppableColumn
+                  columnId={column.id}
+                  isFacilitator={isFacilitator}
+                  isGroupingPhase={room.currentPhase === 'grouping'}
+                  onDropCard={handleDropCardOnColumn}
+                >
+                  {/* Interactive Cards (not in groups) */}
                   <div className="space-y-3">
-                    {column.cardGroups.map((group) => (
-                      <CardGroup
-                        key={group.id}
-                        group={group}
-                        columnColor={column.color}
+                    {column.cards
+                      .filter(card => !column.cardGroups.some(group => 
+                        group.cards.some(groupCard => groupCard.id === card.id)
+                      ))
+                      .map((card) => (
+                      <DraggableCard
+                        key={card.id}
+                        id={card.id}
+                        type="card"
                         isFacilitator={isFacilitator}
                         isGroupingPhase={room.currentPhase === 'grouping'}
-                        onUpdateGroup={handleUpdateGroup}
-                        onDeleteGroup={handleDeleteGroup}
-                        onUpdateCard={handleUpdateCard}
-                        onDeleteCard={handleDeleteCard}
-                        onCardEditStart={handleCardEditStart}
-                        onCardEditEnd={handleCardEditEnd}
-                      />
+                        onDropCard={handleDropCard}
+                      >
+                        <RetroCard
+                          card={{
+                            ...card,
+                            // Override ownership display for non-writing phases
+                            isOwner: (room.currentPhase === 'setup' || room.currentPhase === 'writing') ? (card.isOwner || false) : false
+                          }}
+                          columnColor={column.color}
+                          onUpdate={handleUpdateCard}
+                          onDelete={handleDeleteCard}
+                          onEditStart={handleCardEditStart}
+                          onEditEnd={handleCardEditEnd}
+                          disabled={!guestUser.guestId || (room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing')}
+                          showBlur={room.currentPhase === 'setup' || room.currentPhase === 'writing'}
+                        />
+                      </DraggableCard>
                     ))}
                   </div>
-                )}
 
-                {/* Add Card Button */}
-                <AddCardButton
-                  columnId={column.id}
-                  columnColor={column.color}
-                  onCardCreated={(newCard) => {
-                    // This is handled by the optimistic update in handleCreateCard
-                    console.log('Card created:', newCard.id)
-                  }}
-                  onCreateCard={handleCreateCard}
-                  disabled={!guestUser.guestId || room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing'}
-                />
+                  {/* Card Groups */}
+                  {column.cardGroups && column.cardGroups.length > 0 && (
+                    <div className="space-y-3">
+                      {column.cardGroups.map((group) => (
+                        <DroppableGroup
+                          key={group.id}
+                          groupId={group.id}
+                          isFacilitator={isFacilitator}
+                          isGroupingPhase={room.currentPhase === 'grouping'}
+                          onDropCard={handleDropCardOnGroup}
+                        >
+                          <CardGroup
+                            group={group}
+                            columnColor={column.color}
+                            isFacilitator={isFacilitator}
+                            isGroupingPhase={room.currentPhase === 'grouping'}
+                            currentPhase={room.currentPhase}
+                            onUpdateGroup={handleUpdateGroup}
+                            onDeleteGroup={handleDeleteGroup}
+                            onUpdateCard={handleUpdateCard}
+                            onDeleteCard={handleDeleteCard}
+                            onCardEditStart={handleCardEditStart}
+                            onCardEditEnd={handleCardEditEnd}
+                            onDropCard={handleDropCard}
+                          />
+                        </DroppableGroup>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Card Button */}
+                  <AddCardButton
+                    columnId={column.id}
+                    columnColor={column.color}
+                    onCardCreated={(newCard) => {
+                      // This is handled by the optimistic update in handleCreateCard
+                      console.log('Card created:', newCard.id)
+                    }}
+                    onCreateCard={handleCreateCard}
+                    disabled={!guestUser.guestId || room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing'}
+                  />
+                </DroppableColumn>
               </CardContent>
             </Card>
           ))}

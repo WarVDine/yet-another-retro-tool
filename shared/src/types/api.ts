@@ -110,7 +110,7 @@ export interface DetailedColumnResponse {
   description?: string | undefined
   color: string
   sortOrder: number
-  cards: CardResponse[]
+  cards: CardDetailResponse[]
   cardGroups: CardGroupResponse[]
 }
 

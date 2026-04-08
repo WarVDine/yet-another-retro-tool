@@ -315,6 +315,10 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
             authorName: card.isAnonymous ? undefined : card.author.displayName,
             sortOrder: card.sortOrder,
             createdAt: card.createdAt.toISOString(),
+            // Add CardDetailResponse specific fields
+            columnId: card.columnId,
+            authorId: card.authorId,
+            updatedAt: card.updatedAt.toISOString(),
             // Add ownership flag for frontend (only if currentUserId is available)
             ...(currentUserId && { isOwner: currentUserId === card.authorId }),
           })),
