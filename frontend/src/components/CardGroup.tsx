@@ -270,32 +270,23 @@ export function CardGroup({
         
         {/* Vote count display in discussion phase */}
         {showVoteCount && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600">
-                  {group.voteCount === 1 ? '1 vote' : `${group.voteCount || 0} votes`}
-                </span>
-                {rankingInfo?.isHighlighted && (
-                  <span className={`
-                    inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                    ${rankingInfo.highlightType === 'first' ? 'bg-yellow-100 text-yellow-800' : ''}
-                    ${rankingInfo.highlightType === 'second' ? 'bg-gray-100 text-gray-800' : ''}
-                    ${rankingInfo.highlightType === 'third' ? 'bg-orange-100 text-orange-800' : ''}
-                  `}>
-                    {rankingInfo.highlightType === 'first' ? '🥇' : ''}
-                    {rankingInfo.highlightType === 'second' ? '🥈' : ''}
-                    {rankingInfo.highlightType === 'third' ? '🥉' : ''}
-                    #{rankingInfo.rank}
-                  </span>
-                )}
-              </div>
-              {group.userVotes && group.userVotes > 0 && (
-                <span className="text-blue-600">
-                  You voted {group.userVotes} time{group.userVotes > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-sm font-semibold text-gray-800">
+              {group.voteCount === 1 ? '1 vote' : `${group.voteCount || 0} votes`}
+            </span>
+            {rankingInfo?.isHighlighted && (
+              <span className={`
+                inline-flex items-center px-3 py-1 rounded-full text-sm font-bold
+                ${rankingInfo.highlightType === 'first' ? 'bg-yellow-200 text-yellow-900 border border-yellow-300' : ''}
+                ${rankingInfo.highlightType === 'second' ? 'bg-gray-200 text-gray-900 border border-gray-300' : ''}
+                ${rankingInfo.highlightType === 'third' ? 'bg-orange-200 text-orange-900 border border-orange-300' : ''}
+              `}>
+                {rankingInfo.highlightType === 'first' ? '🥇' : ''}
+                {rankingInfo.highlightType === 'second' ? '🥈' : ''}
+                {rankingInfo.highlightType === 'third' ? '🥉' : ''}
+                #{rankingInfo.rank}
+              </span>
+            )}
           </div>
         )}
       </div>

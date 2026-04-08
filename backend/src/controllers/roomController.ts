@@ -422,8 +422,7 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
               ...(currentUserId && { isOwner: currentUserId === card.authorId }),
               // Add vote information based on phase
               ...(room.currentPhase === 'discussing' && { 
-                voteCount: cardVoteInfo?.total || 0,
-                userVotes: cardVoteInfo?.userVotes || 0 
+                voteCount: cardVoteInfo?.total || 0
               }),
               ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
             }
@@ -440,8 +439,7 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
               updatedAt: group.updatedAt.toISOString(),
               // Add vote information based on phase
               ...(room.currentPhase === 'discussing' && { 
-                voteCount: groupVoteInfo?.total || 0,
-                userVotes: groupVoteInfo?.userVotes || 0 
+                voteCount: groupVoteInfo?.total || 0
               }),
               ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
               cards: group.cardMemberships.map((membership) => ({

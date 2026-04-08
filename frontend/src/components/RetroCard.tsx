@@ -257,30 +257,23 @@ export function RetroCard({
 
             {/* Vote count display in discussion phase */}
             {showVoteCount && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-600">
-                      {card.voteCount === 1 ? '1 vote' : `${card.voteCount || 0} votes`}
-                    </p>
-                    {rankingInfo?.isHighlighted && (
-                      <span className={`
-                        inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                        ${rankingInfo.highlightType === 'first' ? 'bg-yellow-100 text-yellow-800' : ''}
-                        ${rankingInfo.highlightType === 'second' ? 'bg-gray-100 text-gray-800' : ''}
-                        ${rankingInfo.highlightType === 'third' ? 'bg-orange-100 text-orange-800' : ''}
-                      `}>
-                        {rankingInfo.highlightType === 'first' ? '🥇' : ''}
-                        {rankingInfo.highlightType === 'second' ? '🥈' : ''}
-                        {rankingInfo.highlightType === 'third' ? '🥉' : ''}
-                        #{rankingInfo.rank}
-                      </span>
-                    )}
-                  </div>
-                  {card.userVotes && card.userVotes > 0 && (
-                    <p className="text-xs text-blue-600">
-                      You voted {card.userVotes} time{card.userVotes > 1 ? 's' : ''}
-                    </p>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {card.voteCount === 1 ? '1 vote' : `${card.voteCount || 0} votes`}
+                  </p>
+                  {rankingInfo?.isHighlighted && (
+                    <span className={`
+                      inline-flex items-center px-3 py-1 rounded-full text-sm font-bold
+                      ${rankingInfo.highlightType === 'first' ? 'bg-yellow-200 text-yellow-900 border border-yellow-300' : ''}
+                      ${rankingInfo.highlightType === 'second' ? 'bg-gray-200 text-gray-900 border border-gray-300' : ''}
+                      ${rankingInfo.highlightType === 'third' ? 'bg-orange-200 text-orange-900 border border-orange-300' : ''}
+                    `}>
+                      {rankingInfo.highlightType === 'first' ? '🥇' : ''}
+                      {rankingInfo.highlightType === 'second' ? '🥈' : ''}
+                      {rankingInfo.highlightType === 'third' ? '🥉' : ''}
+                      #{rankingInfo.rank}
+                    </span>
                   )}
                 </div>
               </div>
