@@ -172,7 +172,7 @@ GET /api/rooms/:id?guestId=guest-1704067200000-abc123
     "description": "Q4 sprint retrospective",
     "facilitatorCode": "ABC12345",
     "participantCode": "XYZ789",
-    "currentPhase": "writing",
+    "currentPhase": "discussing",
     "maxVotesPerUser": 3,
     "isActive": true,
     "columns": [
@@ -181,8 +181,37 @@ GET /api/rooms/:id?guestId=guest-1704067200000-abc123
         "title": "Start Doing",
         "description": "What should we start doing?",
         "color": "#10B981",
-        "cards": [],
-        "cardGroups": []
+        "cards": [
+          {
+            "id": "card-uuid",
+            "content": "Implement automated testing",
+            "isAnonymous": true,
+            "authorName": null,
+            "sortOrder": 0,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "voteCount": 5
+          }
+        ],
+        "cardGroups": [
+          {
+            "id": "group-uuid",
+            "title": "Process Improvements",
+            "description": null,
+            "sortOrder": 0,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "voteCount": 8,
+            "cards": [
+              {
+                "id": "grouped-card-uuid",
+                "content": "Daily standup improvements",
+                "isAnonymous": true,
+                "authorName": null,
+                "sortOrder": 0,
+                "createdAt": "2024-01-01T00:00:00.000Z"
+              }
+            ]
+          }
+        ]
       }
     ],
     "participants": [
@@ -197,6 +226,12 @@ GET /api/rooms/:id?guestId=guest-1704067200000-abc123
   }
 }
 ```
+
+**Phase-Specific Fields:**
+
+- **Voting Phase**: Cards and groups include `userVotes` (user's vote count on each item)
+- **Discussion Phase**: Cards and groups include `voteCount` (total votes, anonymous)
+- **Other Phases**: No vote-related fields included
 
 #### Update Room Phase
 

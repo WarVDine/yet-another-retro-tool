@@ -5,6 +5,14 @@ import { DeleteButton } from '@/components/DeleteButton'
 import { VoteButton } from '@/components/VoteButton'
 import { CardResponse } from '@yet-another-retro-tool/shared'
 
+interface RankingInfo {
+  id: string
+  voteCount: number
+  rank: number
+  isHighlighted: boolean
+  highlightType: 'first' | 'second' | 'third' | null
+}
+
 interface RetroCardProps {
   card: CardResponse & { isOwner?: boolean; userVotes?: number; voteCount?: number }
   columnColor: string
@@ -21,6 +29,7 @@ interface RetroCardProps {
   isInGroup?: boolean // Whether this card is part of a group (prevents voting)
   votingDisabled?: boolean // Whether voting is disabled (e.g., max votes reached)
   canAddVote?: boolean // Whether user can add more votes (not at max limit)
+  rankingInfo?: RankingInfo // Vote ranking information for discussion phase
 }
 
 export function RetroCard({
@@ -39,6 +48,7 @@ export function RetroCard({
   isInGroup = false,
   votingDisabled = false,
   canAddVote = true,
+  rankingInfo,
 }: RetroCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(card.content)
@@ -156,6 +166,22 @@ export function RetroCard({
   // Determine if editing/deleting should be disabled
   const isEditingDisabled = disabled || currentPhase === 'voting' || currentPhase === 'discussing'
 
+  // Generate highlighting classes based on ranking
+  const getHighlightClasses = () => {
+    if (!rankingInfo?.isHighlighted) return ''
+    
+    switch (rankingInfo.highlightType) {
+      case 'first':
+        return 'ring-2 ring-yellow-400 bg-yellow-50 border-yellow-300'
+      case 'second':
+        return 'ring-2 ring-gray-400 bg-gray-50 border-gray-300'
+      case 'third':
+        return 'ring-2 ring-orange-400 bg-orange-50 border-orange-300'
+      default:
+        return ''
+    }
+  }
+
   return (
     <div
       ref={cardRef}
@@ -163,6 +189,7 @@ export function RetroCard({
         relative group bg-white rounded-lg border-2 shadow-sm transition-all duration-200
         ${isDraggable ? '' : (card.isOwner && !isEditingDisabled ? 'cursor-pointer hover:shadow-md' : 'cursor-default')}
         ${isEditing ? 'ring-2 ring-blue-500 shadow-md' : 'border-gray-200'}
+        ${getHighlightClasses()}
       `}
       style={{
         borderLeftColor: columnColor,
@@ -230,15 +257,25 @@ export function RetroCard({
 
             {/* Vote count display in discussion phase */}
             {showVoteCount && (
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-600">
-                  {card.voteCount === 1 ? '1 vote' : `${card.voteCount} votes`}
-                </p>
-                {card.userVotes && card.userVotes > 0 && (
-                  <p className="text-xs text-blue-600">
-                    You voted {card.userVotes} time{card.userVotes > 1 ? 's' : ''}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-gray-800">
+                    {card.voteCount === 1 ? '1 vote' : `${card.voteCount || 0} votes`}
                   </p>
-                )}
+                  {rankingInfo?.isHighlighted && (
+                    <span className={`
+                      inline-flex items-center px-3 py-1 rounded-full text-sm font-bold
+                      ${rankingInfo.highlightType === 'first' ? 'bg-yellow-200 text-yellow-900 border border-yellow-300' : ''}
+                      ${rankingInfo.highlightType === 'second' ? 'bg-gray-200 text-gray-900 border border-gray-300' : ''}
+                      ${rankingInfo.highlightType === 'third' ? 'bg-orange-200 text-orange-900 border border-orange-300' : ''}
+                    `}>
+                      {rankingInfo.highlightType === 'first' ? '🥇' : ''}
+                      {rankingInfo.highlightType === 'second' ? '🥈' : ''}
+                      {rankingInfo.highlightType === 'third' ? '🥉' : ''}
+                      #{rankingInfo.rank}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 

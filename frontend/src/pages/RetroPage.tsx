@@ -17,6 +17,91 @@ import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi, cardApi, cardGroupApi, voteApi } from '@/utils/api'
 import { useRoomPolling } from '@/hooks/useRoomPolling'
 
+// Types for vote ranking
+interface VotableItem {
+  id: string
+  voteCount?: number
+}
+
+interface RankingInfo {
+  id: string
+  voteCount: number
+  rank: number
+  isHighlighted: boolean
+  highlightType: 'first' | 'second' | 'third' | null
+}
+
+// Utility functions for vote ranking
+const calculateVoteRankings = (items: VotableItem[]): RankingInfo[] => {
+  // Sort items by vote count descending, then by id for consistent ordering
+  const sortedItems = items
+    .map(item => ({ ...item, voteCount: item.voteCount || 0 }))
+    .sort((a, b) => {
+      if (b.voteCount !== a.voteCount) {
+        return b.voteCount - a.voteCount
+      }
+      return a.id.localeCompare(b.id) // Consistent ordering for ties
+    })
+
+  // Group by vote count to handle ties
+  const voteGroups: { [voteCount: number]: VotableItem[] } = {}
+  sortedItems.forEach(item => {
+    const count = item.voteCount
+    if (!voteGroups[count]) {
+      voteGroups[count] = []
+    }
+    voteGroups[count].push(item)
+  })
+
+  // Assign ranks and highlighting
+  const rankings: RankingInfo[] = []
+  const uniqueVoteCounts = Object.keys(voteGroups)
+    .map(Number)
+    .sort((a, b) => b - a) // Descending order
+
+  let currentRank = 1
+  let highlightedRanks = 0
+
+  for (const voteCount of uniqueVoteCounts) {
+    const itemsWithThisCount = voteGroups[voteCount]
+    let highlightType: 'first' | 'second' | 'third' | null = null
+    let isHighlighted = false
+
+    // Determine highlight type based on current rank and how many ranks we've highlighted
+    if (highlightedRanks < 3 && voteCount > 0) {
+      if (currentRank === 1) {
+        highlightType = 'first'
+        isHighlighted = true
+      } else if (currentRank === 2 || (currentRank > 2 && highlightedRanks === 1)) {
+        highlightType = 'second'
+        isHighlighted = true
+      } else if (currentRank === 3 || (currentRank > 3 && highlightedRanks === 2)) {
+        highlightType = 'third'
+        isHighlighted = true
+      }
+    }
+
+    // Add all items with this vote count
+    itemsWithThisCount.forEach(item => {
+      rankings.push({
+        id: item.id,
+        voteCount,
+        rank: currentRank,
+        isHighlighted,
+        highlightType
+      })
+    })
+
+    // Update counters
+    if (isHighlighted) {
+      highlightedRanks++
+    }
+    currentRank += itemsWithThisCount.length
+  }
+
+  return rankings
+}
+
 export function RetroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -33,6 +118,38 @@ export function RetroPage() {
     if (!room || !guestUser.userId) return false
     return room.participants.some((p) => p.id === guestUser.userId && p.role === 'facilitator')
   }, [room, guestUser.userId])
+
+  // Calculate vote rankings for discussion phase
+  const { cardRankings, groupRankings } = useMemo(() => {
+    if (!room || room.currentPhase !== 'discussing') {
+      return { cardRankings: new Map(), groupRankings: new Map() }
+    }
+
+    // Collect all cards (not in groups) and groups
+    const allCards: VotableItem[] = []
+    const allGroups: VotableItem[] = []
+
+    room.columns.forEach(column => {
+      // Add ungrouped cards
+      const ungroupedCards = column.cards.filter(card => 
+        !column.cardGroups.some(group => 
+          group.cards.some(groupCard => groupCard.id === card.id)
+        )
+      )
+      allCards.push(...ungroupedCards.map(card => ({ id: card.id, voteCount: card.voteCount })))
+
+      // Add groups
+      allGroups.push(...column.cardGroups.map(group => ({ id: group.id, voteCount: group.voteCount })))
+    })
+
+    const cardRankingsList = calculateVoteRankings(allCards)
+    const groupRankingsList = calculateVoteRankings(allGroups)
+
+    return {
+      cardRankings: new Map(cardRankingsList.map(r => [r.id, r])),
+      groupRankings: new Map(groupRankingsList.map(r => [r.id, r]))
+    }
+  }, [room])
 
   const loadRoom = useCallback(async () => {
     if (!id) return
@@ -692,6 +809,73 @@ export function RetroPage() {
                 </div>
               )}
 
+              {/* Discussion Phase Header */}
+              {room.currentPhase === 'discussing' && (
+                <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium text-green-900 mb-1">Discussion Phase</h3>
+                      <p className="text-xs text-green-700">
+                        Voting is complete! Review the results and discuss the top-voted items.
+                      </p>
+                    </div>
+                    
+                    {(() => {
+                      // Calculate total votes across all cards and groups
+                      let totalVotes = 0
+                      let totalItems = 0
+                      let topVoteCount = 0
+                      
+                      room.columns.forEach(column => {
+                        // Count ungrouped cards
+                        const ungroupedCards = column.cards.filter(card => 
+                          !column.cardGroups.some(group => 
+                            group.cards.some(groupCard => groupCard.id === card.id)
+                          )
+                        )
+                        ungroupedCards.forEach(card => {
+                          const voteCount = card.voteCount || 0
+                          totalVotes += voteCount
+                          totalItems++
+                          topVoteCount = Math.max(topVoteCount, voteCount)
+                        })
+                        
+                        // Count groups
+                        column.cardGroups.forEach(group => {
+                          const voteCount = group.voteCount || 0
+                          totalVotes += voteCount
+                          totalItems++
+                          topVoteCount = Math.max(topVoteCount, voteCount)
+                        })
+                      })
+
+                      return (
+                        <div className="flex items-center justify-between text-xs text-green-700">
+                          <div className="flex items-center gap-4">
+                            <span>
+                              <strong>{totalVotes}</strong> total votes cast
+                            </span>
+                            <span>
+                              <strong>{totalItems}</strong> items to discuss
+                            </span>
+                            {topVoteCount > 0 && (
+                              <span>
+                                Top item: <strong>{topVoteCount}</strong> votes
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="text-green-600 font-medium">
+                              🏆 Top items are highlighted
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+
               {/* Join Code Section */}
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center justify-between">
@@ -910,6 +1094,7 @@ export function RetroPage() {
                               isInGroup={false}
                               votingDisabled={votingDisabled}
                               canAddVote={canAddVote}
+                              rankingInfo={cardRankings.get(card.id)}
                             />
                           </DraggableCard>
                         ))}
@@ -943,6 +1128,7 @@ export function RetroPage() {
                               onUnvote={handleUnvote}
                               votingDisabled={votingDisabled}
                               canAddVote={canAddVote}
+                              rankingInfo={groupRankings.get(group.id)}
                             />
                           </DroppableGroup>
                         ))}
