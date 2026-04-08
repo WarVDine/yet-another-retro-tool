@@ -243,13 +243,3 @@ export interface VoteResponse {
   createdAt: string
 }
 
-/**
- * Summary of a user's voting activity in a room
- */
-export interface UserVotesSummary {
-  userId: string
-  votesUsed: number
-  maxVotes: number
-  votesRemaining: number
-  votes: VoteResponse[]
-}

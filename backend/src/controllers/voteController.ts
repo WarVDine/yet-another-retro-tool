@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { Request } from 'express'
 
-import { VoteRequest, UnvoteRequest, VoteResponse, UserVotesSummary } from '@yet-another-retro-tool/shared'
+import { VoteRequest, UnvoteRequest, VoteResponse } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
 import { likes, users, cards, cardGroups, cardGroupMemberships, rooms } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
@@ -175,93 +175,3 @@ export const removeVoteFromTarget = asyncHandler(async (req: Request, res: Custo
   }
 })
 
-/**
- * Get user's voting summary for a room
- */
-export const getUserVotes = asyncHandler(async (req: Request, res: CustomResponse<UserVotesSummary>) => {
-  const { userId, roomId } = req.params
-
-  try {
-    // Validate parameters
-    if (!userId || !roomId) {
-      res.status(400).json({
-        success: false,
-        error: 'Validation Error',
-        message: 'Both userId and roomId are required'
-      })
-      return
-    }
-
-    // Validate user is participant in room
-    const isParticipant = await validateRoomParticipant(userId, roomId)
-    if (!isParticipant) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'You must be a participant in this room to view votes',
-      })
-      return
-    }
-
-    // Get room to check max votes
-    const room = await db.query.rooms.findFirst({
-      where: eq(rooms.id, roomId),
-      columns: {
-        maxVotesPerUser: true,
-      },
-    })
-
-    if (!room) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'Room not found',
-      })
-      return
-    }
-
-    // Get user's votes in this room (need to join through cards/groups to get room)
-    const userVotes = await db.query.likes.findMany({
-      where: eq(likes.userId, userId),
-      with: {
-        card: {
-          with: {
-            column: true,
-          },
-        },
-        group: {
-          with: {
-            column: true,
-          },
-        },
-      },
-    })
-
-    // Filter votes that belong to this room
-    const roomVotes = userVotes.filter((vote) => {
-      const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
-      return roomIdFromVote === roomId
-    })
-
-    const votesUsed = roomVotes.length
-    const votesRemaining = room.maxVotesPerUser - votesUsed
-
-    res.status(200).json({
-      success: true,
-      data: {
-        userId,
-        votesUsed,
-        maxVotes: room.maxVotesPerUser,
-        votesRemaining,
-        votes: roomVotes.map(toVoteResponse),
-      },
-    })
-  } catch (error) {
-    console.error('Get user votes error:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to get user votes',
-    })
-  }
-})

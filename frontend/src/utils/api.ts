@@ -21,7 +21,6 @@ import {
   VoteRequest,
   UnvoteRequest,
   VoteResponse,
-  UserVotesSummary,
 } from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -201,12 +200,6 @@ export const voteApi = {
     return apiClient.delete<void>('/votes', request)
   },
 
-  /**
-   * Get user's voting summary for a specific room
-   */
-  getUserVotes: async (userId: string, roomId: string): Promise<UserVotesSummary> => {
-    return apiClient.get<UserVotesSummary>(`/votes/user/${userId}/room/${roomId}`)
-  },
 
   /**
    * Convenience method to vote on a card
