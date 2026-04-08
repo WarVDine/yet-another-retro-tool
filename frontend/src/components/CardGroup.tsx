@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RetroCard } from '@/components/RetroCard'
 import { DraggableCard } from '@/components/DraggableCard'
+import { VoteButton } from '@/components/VoteButton'
 
 interface CardGroupProps {
-  group: CardGroupResponse
+  group: CardGroupResponse & { userVotes?: number; voteCount?: number }
   columnColor: string
   isFacilitator: boolean
   isGroupingPhase: boolean
@@ -20,6 +21,10 @@ interface CardGroupProps {
   onCardEditStart?: (cardId: string) => void
   onCardEditEnd?: () => void
   onDropCard?: (draggedCardId: string, targetCardId: string) => void
+  onVote?: (targetId: string, targetType: 'card' | 'group') => Promise<void>
+  onUnvote?: (targetId: string, targetType: 'card' | 'group') => Promise<void>
+  votingDisabled?: boolean // Whether voting is disabled (e.g., max votes reached)
+  canAddVote?: boolean // Whether user can add more votes (not at max limit)
 }
 
 export function CardGroup({
@@ -35,6 +40,10 @@ export function CardGroup({
   onCardEditStart,
   onCardEditEnd,
   onDropCard,
+  onVote,
+  onUnvote,
+  votingDisabled = false,
+  canAddVote = true,
 }: CardGroupProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [title, setTitle] = useState(group.title || '')
@@ -103,15 +112,44 @@ export function CardGroup({
     }
   }
 
+  const handleVote = async (targetId: string, targetType: 'card' | 'group') => {
+    if (onVote) {
+      await onVote(targetId, targetType)
+    }
+  }
+
+  const handleUnvote = async (targetId: string, targetType: 'card' | 'group') => {
+    if (onUnvote) {
+      await onUnvote(targetId, targetType)
+    }
+  }
+
+  // Determine if voting should be shown
+  const showVoting = currentPhase === 'voting' && onVote && onUnvote
+  const showVoteCount = currentPhase === 'discussing' && group.voteCount !== undefined
+
   return (
     <div
-      className="bg-white rounded-lg border-2 shadow-sm p-4 space-y-3"
+      className="relative bg-white rounded-lg border-2 shadow-sm p-4 space-y-3"
       style={{
         borderLeftColor: columnColor,
         borderLeftWidth: '4px',
         borderLeftStyle: 'solid',
       }}
     >
+      {/* Vote button - only visible during voting phase */}
+      {showVoting && (
+        <VoteButton
+          targetId={group.id}
+          targetType='group'
+          userVotes={group.userVotes || 0}
+          disabled={votingDisabled}
+          canAddVote={canAddVote}
+          onVote={handleVote}
+          onUnvote={handleUnvote}
+          className='absolute -top-2 -right-2 z-10'
+        />
+      )}
       {/* Group Header */}
       <div className="flex items-center justify-between">
         <div className="flex-1">
@@ -180,21 +218,43 @@ export function CardGroup({
                 isOwner: (currentPhase === 'setup' || currentPhase === 'writing') ? (card.isOwner || false) : false
               }}
               columnColor={columnColor}
+              currentPhase={currentPhase}
               onUpdate={onUpdateCard}
               onDelete={onDeleteCard}
               onEditStart={onCardEditStart}
               onEditEnd={onCardEditEnd}
+              onVote={handleVote}
+              onUnvote={handleUnvote}
               disabled={!isGroupingPhase} // Cards are disabled outside grouping phase
               showBlur={currentPhase === 'setup' || currentPhase === 'writing'}
               isDraggable={isFacilitator && isGroupingPhase}
+              isInGroup={true} // Cards in groups cannot be voted on individually
+              votingDisabled={votingDisabled}
+              canAddVote={canAddVote}
             />
           </DraggableCard>
         ))}
       </div>
 
       {/* Group Info */}
-      <div className="text-xs text-gray-500 border-t pt-2">
-        {group.cards.length} card{group.cards.length !== 1 ? 's' : ''} in this group
+      <div className="text-xs text-gray-500 border-t pt-2 space-y-1">
+        <div>
+          {group.cards.length} card{group.cards.length !== 1 ? 's' : ''} in this group
+        </div>
+        
+        {/* Vote count display in discussion phase */}
+        {showVoteCount && (
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">
+              {group.voteCount === 1 ? '1 vote' : `${group.voteCount} votes`}
+            </span>
+            {group.userVotes && group.userVotes > 0 && (
+              <span className="text-blue-600">
+                You voted {group.userVotes} time{group.userVotes > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

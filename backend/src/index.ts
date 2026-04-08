@@ -11,6 +11,7 @@ import { healthRouter } from '@/routes/health'
 import { roomRouter } from '@/routes/rooms'
 import { userRouter } from '@/routes/users'
 import { cardGroupRouter } from '@/routes/cardGroups'
+import { voteRouter } from '@/routes/votes'
 
 // Load environment variables
 dotenv.config()
@@ -40,6 +41,7 @@ app.use(`${API_PREFIX}/card-groups`, cardGroupRouter)
 app.use(`${API_PREFIX}/health`, healthRouter)
 app.use(`${API_PREFIX}/rooms`, roomRouter)
 app.use(`${API_PREFIX}/users`, userRouter)
+app.use(`${API_PREFIX}/votes`, voteRouter)
 
 // Error handling middleware (must be last)
 app.use(notFound)

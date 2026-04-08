@@ -49,7 +49,8 @@ export async function fixCardPositions() {
 
       // Update sort orders sequentially
       for (let i = 0; i < columnCards.rows.length; i++) {
-        const { id: cardId } = columnCards.rows[i]
+        const row = columnCards.rows[i] as { id: string }
+        const cardId = row.id
         await db.execute(sql`
           UPDATE cards 
           SET sort_order = ${i}, updated_at = NOW()
@@ -80,7 +81,8 @@ export async function fixCardPositions() {
 
       // Update sort orders sequentially
       for (let i = 0; i < columnGroups.rows.length; i++) {
-        const { id: groupId } = columnGroups.rows[i]
+        const row = columnGroups.rows[i] as { id: string }
+        const groupId = row.id
         await db.execute(sql`
           UPDATE card_groups 
           SET sort_order = ${i}, updated_at = NOW()

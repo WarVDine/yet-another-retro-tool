@@ -18,6 +18,10 @@ import {
   AddCardsToGroupRequest,
   RemoveCardsFromGroupRequest,
   CardGroupResponse,
+  VoteRequest,
+  UnvoteRequest,
+  VoteResponse,
+  UserVotesSummary,
 } from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -176,5 +180,59 @@ export const cardGroupApi = {
 
   removeCardsFromGroup: async (groupId: string, request: RemoveCardsFromGroupRequest): Promise<CardGroupResponse | void> => {
     return apiClient.delete<CardGroupResponse | void>(`/card-groups/${groupId}/cards`, request)
+  },
+}
+
+// Vote API methods
+export const voteApi = {
+  /**
+   * Cast a vote on a card or group
+   * Exactly one of cardId or groupId must be provided
+   */
+  vote: async (request: VoteRequest): Promise<VoteResponse> => {
+    return apiClient.post<VoteResponse>('/votes', request)
+  },
+
+  /**
+   * Remove a vote from a card or group
+   * Exactly one of cardId or groupId must be provided
+   */
+  unvote: async (request: UnvoteRequest): Promise<void> => {
+    return apiClient.delete<void>('/votes', request)
+  },
+
+  /**
+   * Get user's voting summary for a specific room
+   */
+  getUserVotes: async (userId: string, roomId: string): Promise<UserVotesSummary> => {
+    return apiClient.get<UserVotesSummary>(`/votes/user/${userId}/room/${roomId}`)
+  },
+
+  /**
+   * Convenience method to vote on a card
+   */
+  voteOnCard: async (cardId: string, guestId: string): Promise<VoteResponse> => {
+    return apiClient.post<VoteResponse>('/votes', { cardId, guestId })
+  },
+
+  /**
+   * Convenience method to vote on a group
+   */
+  voteOnGroup: async (groupId: string, guestId: string): Promise<VoteResponse> => {
+    return apiClient.post<VoteResponse>('/votes', { groupId, guestId })
+  },
+
+  /**
+   * Convenience method to remove vote from a card
+   */
+  unvoteCard: async (cardId: string, guestId: string): Promise<void> => {
+    return apiClient.delete<void>('/votes', { cardId, guestId })
+  },
+
+  /**
+   * Convenience method to remove vote from a group
+   */
+  unvoteGroup: async (groupId: string, guestId: string): Promise<void> => {
+    return apiClient.delete<void>('/votes', { groupId, guestId })
   },
 }
