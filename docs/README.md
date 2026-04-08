@@ -37,6 +37,14 @@ facilitation platform with the following key features:
 - Cross-column grouping capabilities
 - Position management and conflict resolution
 
+### 5. [Voting System](05-voting-system.md)
+
+- Configurable vote limits per participant (default: 3 votes)
+- Vote on cards or groups with exclusive voting rules
+- Multiple votes allowed on same target with redistribution
+- Real-time vote tracking without revealing counts until discussion
+- Phase-based vote visibility and enforcement
+
 ## Architecture Overview
 
 ```mermaid
@@ -62,6 +70,7 @@ flowchart TB
         Cards[cards]
         Groups[card_groups]
         Memberships[card_group_memberships]
+        Likes[likes - voting system]
     end
     
     Frontend --> API
@@ -85,6 +94,7 @@ flowchart TB
 4. **Real-time Updates**: Polling-based synchronization with conflict
    resolution
 5. **Grouping**: Facilitator-only drag-and-drop with position management
+6. **Voting**: Phase-restricted voting with limits and real-time tracking
 
 ## Technology Stack
 
