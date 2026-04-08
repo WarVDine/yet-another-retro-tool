@@ -1,11 +1,11 @@
 [build]
   base = "."
-  command = "npm run build --workspace=shared && npm run build --workspace=frontend"
+  command = "npm ci --prefer-offline --no-audit && npm run build --workspace=shared && npm run build --workspace=frontend"
   publish = "frontend/dist"
 
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
+  NODE_VERSION = "20"
+  NPM_VERSION = "10"
 
 # API proxy - forwards /api/* to your Heroku backend
 [[redirects]]
