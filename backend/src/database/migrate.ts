@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { config } from 'dotenv'
+import path from 'path'
 
 // Load environment variables
 config()
@@ -14,12 +15,15 @@ async function runMigrations() {
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   })
 
   const db = drizzle(pool)
 
   try {
-    await migrate(db, { migrationsFolder: './src/database/migrations' })
+    // Use absolute path that works in production
+    const migrationsFolder = path.join(__dirname, 'migrations')
+    await migrate(db, { migrationsFolder })
     console.log('✅ Migrations completed successfully!')
   } catch (error) {
     console.error('❌ Migration failed:', error)
