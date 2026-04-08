@@ -10,7 +10,7 @@
 # API proxy - forwards /api/* to your Heroku backend
 [[redirects]]
   from = "/api/*"
-  to = "https://your-retro-tool-api.herokuapp.com/api/:splat"
+  to = "https://yet-another-retro-tool-api-7044d0490743.herokuapp.com/api/:splat"
   status = 200
   force = true
 
@@ -19,4 +19,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-  
