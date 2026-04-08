@@ -421,7 +421,10 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
               // Add ownership flag for frontend (only if currentUserId is available)
               ...(currentUserId && { isOwner: currentUserId === card.authorId }),
               // Add vote information based on phase
-              ...(room.currentPhase === 'discussing' && cardVoteInfo && { voteCount: cardVoteInfo.total }),
+              ...(room.currentPhase === 'discussing' && { 
+                voteCount: cardVoteInfo?.total || 0,
+                userVotes: cardVoteInfo?.userVotes || 0 
+              }),
               ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
             }
           }),
@@ -436,7 +439,10 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
               createdAt: group.createdAt.toISOString(),
               updatedAt: group.updatedAt.toISOString(),
               // Add vote information based on phase
-              ...(room.currentPhase === 'discussing' && groupVoteInfo && { voteCount: groupVoteInfo.total }),
+              ...(room.currentPhase === 'discussing' && { 
+                voteCount: groupVoteInfo?.total || 0,
+                userVotes: groupVoteInfo?.userVotes || 0 
+              }),
               ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
               cards: group.cardMemberships.map((membership) => ({
                 id: membership.card.id,

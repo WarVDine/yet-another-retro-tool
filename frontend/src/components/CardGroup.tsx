@@ -8,6 +8,14 @@ import { RetroCard } from '@/components/RetroCard'
 import { DraggableCard } from '@/components/DraggableCard'
 import { VoteButton } from '@/components/VoteButton'
 
+interface RankingInfo {
+  id: string
+  voteCount: number
+  rank: number
+  isHighlighted: boolean
+  highlightType: 'first' | 'second' | 'third' | null
+}
+
 interface CardGroupProps {
   group: CardGroupResponse & { userVotes?: number; voteCount?: number }
   columnColor: string
@@ -25,6 +33,7 @@ interface CardGroupProps {
   onUnvote?: (targetId: string, targetType: 'card' | 'group') => Promise<void>
   votingDisabled?: boolean // Whether voting is disabled (e.g., max votes reached)
   canAddVote?: boolean // Whether user can add more votes (not at max limit)
+  rankingInfo?: RankingInfo // Vote ranking information for discussion phase
 }
 
 export function CardGroup({
@@ -44,6 +53,7 @@ export function CardGroup({
   onUnvote,
   votingDisabled = false,
   canAddVote = true,
+  rankingInfo,
 }: CardGroupProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [title, setTitle] = useState(group.title || '')
@@ -128,9 +138,25 @@ export function CardGroup({
   const showVoting = currentPhase === 'voting' && onVote && onUnvote
   const showVoteCount = currentPhase === 'discussing' && group.voteCount !== undefined
 
+  // Generate highlighting classes based on ranking
+  const getHighlightClasses = () => {
+    if (!rankingInfo?.isHighlighted) return 'border-gray-200'
+    
+    switch (rankingInfo.highlightType) {
+      case 'first':
+        return 'ring-2 ring-yellow-400 bg-yellow-50 border-yellow-300'
+      case 'second':
+        return 'ring-2 ring-gray-400 bg-gray-50 border-gray-300'
+      case 'third':
+        return 'ring-2 ring-orange-400 bg-orange-50 border-orange-300'
+      default:
+        return 'border-gray-200'
+    }
+  }
+
   return (
     <div
-      className="relative bg-white rounded-lg border-2 shadow-sm p-4 space-y-3"
+      className={`relative bg-white rounded-lg border-2 shadow-sm p-4 space-y-3 transition-all duration-200 ${getHighlightClasses()}`}
       style={{
         borderLeftColor: columnColor,
         borderLeftWidth: '4px',
@@ -244,15 +270,32 @@ export function CardGroup({
         
         {/* Vote count display in discussion phase */}
         {showVoteCount && (
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">
-              {group.voteCount === 1 ? '1 vote' : `${group.voteCount} votes`}
-            </span>
-            {group.userVotes && group.userVotes > 0 && (
-              <span className="text-blue-600">
-                You voted {group.userVotes} time{group.userVotes > 1 ? 's' : ''}
-              </span>
-            )}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">
+                  {group.voteCount === 1 ? '1 vote' : `${group.voteCount || 0} votes`}
+                </span>
+                {rankingInfo?.isHighlighted && (
+                  <span className={`
+                    inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                    ${rankingInfo.highlightType === 'first' ? 'bg-yellow-100 text-yellow-800' : ''}
+                    ${rankingInfo.highlightType === 'second' ? 'bg-gray-100 text-gray-800' : ''}
+                    ${rankingInfo.highlightType === 'third' ? 'bg-orange-100 text-orange-800' : ''}
+                  `}>
+                    {rankingInfo.highlightType === 'first' ? '🥇' : ''}
+                    {rankingInfo.highlightType === 'second' ? '🥈' : ''}
+                    {rankingInfo.highlightType === 'third' ? '🥉' : ''}
+                    #{rankingInfo.rank}
+                  </span>
+                )}
+              </div>
+              {group.userVotes && group.userVotes > 0 && (
+                <span className="text-blue-600">
+                  You voted {group.userVotes} time{group.userVotes > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

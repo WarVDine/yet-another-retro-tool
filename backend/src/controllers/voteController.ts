@@ -3,7 +3,7 @@ import { Request } from 'express'
 
 import { VoteRequest, UnvoteRequest, VoteResponse } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
-import { likes, users, cards, cardGroups, cardGroupMemberships, rooms } from '@/database/schema'
+import { likes, users, cards, cardGroups, cardGroupMemberships, rooms, columns } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
 import { validateRoomParticipant, resolveGuestUser } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
@@ -77,10 +77,15 @@ export const voteOnTarget = asyncHandler(async (req: Request, res: CustomRespons
     const currentVotesQuery = await db
       .select({ count: sql<number>`count(*)` })
       .from(likes)
+      .leftJoin(cards, eq(likes.cardId, cards.id))
+      .leftJoin(cardGroups, eq(likes.groupId, cardGroups.id))
+      .leftJoin(columns, sql`${columns.id} = COALESCE(${cards.columnId}, ${cardGroups.columnId})`)
       .innerJoin(users, eq(likes.userId, users.id))
       .where(and(
         eq(users.guestId, guestId),
-        eq(likes.userId, userId)
+        eq(likes.userId, userId),
+        // Only count votes for cards/groups in this room
+        eq(columns.roomId, roomId)
       ))
 
     const currentVoteCount = currentVotesQuery[0]?.count || 0
