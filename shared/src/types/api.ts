@@ -135,6 +135,17 @@ export interface UpdateCardRequest {
   guestId: string
 }
 
+export interface MoveCardRequest {
+  targetColumnId: string
+  targetPosition?: number // Optional sort order
+  guestId: string
+}
+
+export interface UpdateCardPositionRequest {
+  sortOrder: number
+  guestId: string
+}
+
 export interface CardDetailResponse extends CardResponse {
   columnId: string
   authorId: string

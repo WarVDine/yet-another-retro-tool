@@ -113,6 +113,14 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Update cards' columnId to match the group's column (exclusive location model)
+    await db.update(cards)
+      .set({ 
+        columnId: columnId,
+        updatedAt: new Date()
+      })
+      .where(inArray(cards.id, cardIds))
+
     // Add cards to the group
     const memberships = cardIds.map(cardId => ({
       cardId,
@@ -465,6 +473,14 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
       })
       return
     }
+
+    // Update cards' columnId to match the group's column (exclusive location model)
+    await db.update(cards)
+      .set({ 
+        columnId: group.columnId,
+        updatedAt: new Date()
+      })
+      .where(inArray(cards.id, cardIds))
 
     // Add cards to the group (ignore if already in group)
     const memberships = cardIds.map(cardId => ({

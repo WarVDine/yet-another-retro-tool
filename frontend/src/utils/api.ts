@@ -10,6 +10,8 @@ import {
   GuestUserResponse,
   CreateCardRequest,
   UpdateCardRequest,
+  MoveCardRequest,
+  UpdateCardPositionRequest,
   CardDetailResponse,
   CreateCardGroupRequest,
   UpdateCardGroupRequest,
@@ -143,6 +145,14 @@ export const cardApi = {
 
   deleteCard: async (cardId: string, guestId: string): Promise<void> => {
     return apiClient.delete<void>(`/cards/${cardId}`, { guestId })
+  },
+
+  moveCard: async (cardId: string, request: MoveCardRequest): Promise<CardDetailResponse> => {
+    return apiClient.patch<CardDetailResponse>(`/cards/${cardId}/move`, request)
+  },
+
+  updateCardPosition: async (cardId: string, request: UpdateCardPositionRequest): Promise<CardDetailResponse> => {
+    return apiClient.patch<CardDetailResponse>(`/cards/${cardId}/position`, request)
   },
 }
 

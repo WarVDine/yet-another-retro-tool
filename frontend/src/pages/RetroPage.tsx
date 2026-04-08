@@ -357,38 +357,62 @@ export function RetroPage() {
     }
   }, [guestUser.guestId, isFacilitator, room, loadRoom])
 
-  // Handler for dropping a card on a column (to move it out of a group)
-  const handleDropCardOnColumn = useCallback(async (draggedCardId: string, _targetColumnId: string) => {
+  // Handler for dropping a card on a column (to move it out of a group or to a different column)
+  const handleDropCardOnColumn = useCallback(async (draggedCardId: string, targetColumnId: string) => {
     if (!guestUser.guestId || !isFacilitator || room?.currentPhase !== 'grouping') return
 
     try {
-      // Find the dragged card and its current group
+      // Find the dragged card and its current location
       let draggedCard = null
       let currentGroup = null
+      let currentColumn = null
       
+      // Check if card is in a group
       for (const column of room.columns) {
-        // Check if card is in a group
         for (const group of column.cardGroups) {
           const foundCard = group.cards.find(card => card.id === draggedCardId)
           if (foundCard) {
             draggedCard = foundCard
             currentGroup = group
+            currentColumn = column
             break
           }
         }
         if (draggedCard) break
       }
 
-      if (!draggedCard || !currentGroup) {
-        console.log('Card not found in any group, ignoring drop')
+      // If not found in groups, check individual cards
+      if (!draggedCard) {
+        for (const column of room.columns) {
+          const foundCard = column.cards.find(card => card.id === draggedCardId)
+          if (foundCard) {
+            draggedCard = foundCard
+            currentColumn = column
+            break
+          }
+        }
+      }
+
+      if (!draggedCard || !currentColumn) {
+        console.log('Card not found, ignoring drop')
         return
       }
 
-      // Remove card from its current group
-      await cardGroupApi.removeCardsFromGroup(currentGroup.id, {
-        cardIds: [draggedCardId],
-        guestId: guestUser.guestId
-      })
+      // If card is in a group, remove it from the group first
+      if (currentGroup) {
+        await cardGroupApi.removeCardsFromGroup(currentGroup.id, {
+          cardIds: [draggedCardId],
+          guestId: guestUser.guestId
+        })
+      }
+
+      // If moving to a different column, use the move API
+      if (currentColumn.id !== targetColumnId) {
+        await cardApi.moveCard(draggedCardId, {
+          targetColumnId,
+          guestId: guestUser.guestId
+        })
+      }
 
       // Reload room data
       await loadRoom()
