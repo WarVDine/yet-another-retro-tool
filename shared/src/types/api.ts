@@ -151,6 +151,8 @@ export interface CardDetailResponse extends CardResponse {
   authorId: string
   updatedAt: string
   isOwner?: boolean // Frontend-only flag for ownership indication
+  voteCount?: number // Only shown in discussion phase
+  userVotes?: number // Number of votes current user has on this card
 }
 
 export interface ParticipantResponse {
@@ -158,6 +160,8 @@ export interface ParticipantResponse {
   displayName: string
   role: 'facilitator' | 'participant'
   joinedAt: string
+  votesUsed?: number
+  votesRemaining?: number
 }
 
 export interface UpdateRoomPhaseRequest {
@@ -197,4 +201,45 @@ export interface CardGroupResponse {
   createdAt: string
   updatedAt: string
   cards: CardDetailResponse[]
+  voteCount?: number // Only shown in discussion phase
+  userVotes?: number // Number of votes current user has on this group
 }
+
+// Vote management types
+/**
+ * Request to cast a vote on a card or group
+ * Exactly one of cardId or groupId must be provided
+ */
+export interface VoteRequest {
+  /** ID of card to vote on (exclusive with groupId) */
+  cardId?: string
+  /** ID of group to vote on (exclusive with cardId) */
+  groupId?: string
+  /** Guest ID of the voting user */
+  guestId: string
+}
+
+/**
+ * Request to remove a vote from a card or group
+ * Exactly one of cardId or groupId must be provided
+ */
+export interface UnvoteRequest {
+  /** ID of card to remove vote from (exclusive with groupId) */
+  cardId?: string
+  /** ID of group to remove vote from (exclusive with cardId) */
+  groupId?: string
+  /** Guest ID of the voting user */
+  guestId: string
+}
+
+/**
+ * Response when a vote is successfully cast
+ */
+export interface VoteResponse {
+  id: string
+  userId: string
+  cardId?: string
+  groupId?: string
+  createdAt: string
+}
+

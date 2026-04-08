@@ -14,7 +14,7 @@ import { CardGroup } from '@/components/CardGroup'
 import { DroppableColumn } from '@/components/DroppableColumn'
 import { DroppableGroup } from '@/components/DroppableGroup'
 import { useGuestUser } from '@/contexts/GuestUserContext'
-import { roomApi, cardApi, cardGroupApi } from '@/utils/api'
+import { roomApi, cardApi, cardGroupApi, voteApi } from '@/utils/api'
 import { useRoomPolling } from '@/hooks/useRoomPolling'
 
 export function RetroPage() {
@@ -514,6 +514,65 @@ export function RetroPage() {
     }
   }, [room?.participantCode])
 
+  // Voting handlers
+  const handleVote = useCallback(
+    async (targetId: string, targetType: 'card' | 'group') => {
+      if (!guestUser.guestId || room?.currentPhase !== 'voting') return
+
+      try {
+        if (targetType === 'card') {
+          await voteApi.voteOnCard(targetId, guestUser.guestId)
+        } else {
+          await voteApi.voteOnGroup(targetId, guestUser.guestId)
+        }
+        
+        // Reload room data to get updated vote counts
+        await loadRoom()
+      } catch (error) {
+        console.error('Failed to cast vote:', error)
+        setError('Failed to cast vote. Please try again.')
+        setTimeout(() => setError(null), 3000)
+      }
+    },
+    [guestUser.guestId, room?.currentPhase, loadRoom]
+  )
+
+  const handleUnvote = useCallback(
+    async (targetId: string, targetType: 'card' | 'group') => {
+      if (!guestUser.guestId || room?.currentPhase !== 'voting') return
+
+      try {
+        if (targetType === 'card') {
+          await voteApi.unvoteCard(targetId, guestUser.guestId)
+        } else {
+          await voteApi.unvoteGroup(targetId, guestUser.guestId)
+        }
+        
+        // Reload room data to get updated vote counts
+        await loadRoom()
+      } catch (error) {
+        console.error('Failed to remove vote:', error)
+        setError('Failed to remove vote. Please try again.')
+        setTimeout(() => setError(null), 3000)
+      }
+    },
+    [guestUser.guestId, room?.currentPhase, loadRoom]
+  )
+
+  // Check if user has reached max votes
+  const currentUserVotes = useMemo(() => {
+    if (!room || !guestUser.userId || room.currentPhase !== 'voting') return { used: 0, remaining: 0 }
+    
+    const participant = room.participants.find(p => p.id === guestUser.userId)
+    return {
+      used: participant?.votesUsed || 0,
+      remaining: participant?.votesRemaining || 0
+    }
+  }, [room, guestUser.userId])
+
+  const votingDisabled = false // Keep voting enabled for removing votes
+  const canAddVote = currentUserVotes.remaining > 0
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -707,6 +766,10 @@ export function RetroPage() {
                 <div className="flex flex-wrap gap-2">
                   {room.participants.map((participant) => {
                     const isCurrentUser = guestUser.userId === participant.id
+                    const showVoteCounts = room.currentPhase === 'voting' && 
+                      participant.votesUsed !== undefined && 
+                      participant.votesRemaining !== undefined
+                    
                     return (
                       <span
                         key={participant.id}
@@ -721,6 +784,22 @@ export function RetroPage() {
                         {participant.displayName}
                         {participant.role === 'facilitator' && ' (Facilitator)'}
                         {isCurrentUser && ' (You)'}
+                        {showVoteCounts && (
+                          <span className={`ml-1 font-medium ${
+                            participant.votesRemaining! < 0 
+                              ? 'text-red-600' 
+                              : participant.votesRemaining === 0 
+                                ? 'text-amber-600' 
+                                : 'text-green-600'
+                          }`}>
+                            ({participant.votesUsed}/{participant.votesUsed! + participant.votesRemaining!} votes)
+                            {participant.votesRemaining! < 0 && (
+                              <span className="text-red-600 text-xs ml-1">
+                                ({Math.abs(participant.votesRemaining!)} over)
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </span>
                     )
                   })}
@@ -728,6 +807,37 @@ export function RetroPage() {
               </div>
             </div>
           </div>
+
+          {/* Vote limit info for current user */}
+          {room.currentPhase === 'voting' && (() => {
+            const currentParticipant = room.participants.find(p => p.id === guestUser.userId)
+            if (!currentParticipant) return null
+            
+            const isAtLimit = currentParticipant.votesRemaining === 0
+            const maxVotes = currentParticipant.votesUsed! + currentParticipant.votesRemaining!
+            
+            return isAtLimit ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-amber-800">
+                      You've reached your vote limit
+                    </h3>
+                    <div className="mt-2 text-sm text-amber-700">
+                      <p>
+                        You've used all {maxVotes} of your votes. Remove a vote from another card/group to add votes elsewhere.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null
+          })()}
 
           {/* Retro Columns */}
           <div
@@ -782,10 +892,13 @@ export function RetroPage() {
                                     : false,
                               }}
                               columnColor={column.color}
+                              currentPhase={room.currentPhase}
                               onUpdate={handleUpdateCard}
                               onDelete={handleDeleteCard}
                               onEditStart={handleCardEditStart}
                               onEditEnd={handleCardEditEnd}
+                              onVote={handleVote}
+                              onUnvote={handleUnvote}
                               disabled={
                                 !guestUser.guestId ||
                                 room.currentPhase === 'grouping' ||
@@ -794,6 +907,9 @@ export function RetroPage() {
                               }
                               showBlur={room.currentPhase === 'setup' || room.currentPhase === 'writing'}
                               isDraggable={isFacilitator && room.currentPhase === 'grouping'}
+                              isInGroup={false}
+                              votingDisabled={votingDisabled}
+                              canAddVote={canAddVote}
                             />
                           </DraggableCard>
                         ))}
@@ -823,6 +939,10 @@ export function RetroPage() {
                               onCardEditStart={handleCardEditStart}
                               onCardEditEnd={handleCardEditEnd}
                               onDropCard={handleDropCard}
+                              onVote={handleVote}
+                              onUnvote={handleUnvote}
+                              votingDisabled={votingDisabled}
+                              canAddVote={canAddVote}
                             />
                           </DroppableGroup>
                         ))}

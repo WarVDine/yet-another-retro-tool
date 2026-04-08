@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { Request } from 'express'
 
 import {
@@ -11,7 +11,16 @@ import {
   RETRO_TEMPLATES,
 } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
-import { rooms, columns, users, roomParticipants, cards, cardGroups, cardGroupMemberships } from '@/database/schema'
+import {
+  rooms,
+  columns,
+  users,
+  roomParticipants,
+  cards,
+  cardGroups,
+  cardGroupMemberships,
+  likes,
+} from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
 import { validateFacilitatorRole, validateRoomParticipant } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
@@ -291,6 +300,94 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
       }
     }
 
+    // Load vote information based on current phase
+    let voteData: {
+      cardVotes: Map<string, { total: number; userVotes: number }>
+      groupVotes: Map<string, { total: number; userVotes: number }>
+      participantVotes: Map<string, { used: number; remaining: number }>
+    } = {
+      cardVotes: new Map(),
+      groupVotes: new Map(),
+      participantVotes: new Map(),
+    }
+
+    if (room.currentPhase === 'voting' || room.currentPhase === 'discussing') {
+      // Get all votes for cards and groups in this room
+      const allVotes = await db.query.likes.findMany({
+        with: {
+          card: {
+            with: {
+              column: true,
+            },
+          },
+          group: {
+            with: {
+              column: true,
+            },
+          },
+        },
+      })
+
+      // Filter votes that belong to this room
+      const roomVotes = allVotes.filter((vote) => {
+        const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
+        return roomIdFromVote === room.id
+      })
+
+      // Build vote counts for cards
+      const cardVoteCounts = new Map<string, number>()
+      const userCardVotes = new Map<string, number>()
+
+      // Build vote counts for groups
+      const groupVoteCounts = new Map<string, number>()
+      const userGroupVotes = new Map<string, number>()
+
+      roomVotes.forEach((vote) => {
+        if (vote.cardId) {
+          cardVoteCounts.set(vote.cardId, (cardVoteCounts.get(vote.cardId) || 0) + 1)
+          if (vote.userId === currentUserId) {
+            userCardVotes.set(vote.cardId, (userCardVotes.get(vote.cardId) || 0) + 1)
+          }
+        }
+
+        if (vote.groupId) {
+          groupVoteCounts.set(vote.groupId, (groupVoteCounts.get(vote.groupId) || 0) + 1)
+          if (vote.userId === currentUserId) {
+            userGroupVotes.set(vote.groupId, (userGroupVotes.get(vote.groupId) || 0) + 1)
+          }
+        }
+      })
+
+      // Build participant vote summaries
+      if (room.currentPhase === 'voting') {
+        const participantVoteCounts = new Map<string, number>()
+        roomVotes.forEach((vote) => {
+          participantVoteCounts.set(vote.userId, (participantVoteCounts.get(vote.userId) || 0) + 1)
+        })
+
+        room.participants.forEach((participant) => {
+          const used = participantVoteCounts.get(participant.user.id) || 0
+          const remaining = room.maxVotesPerUser - used
+          voteData.participantVotes.set(participant.user.id, { used, remaining })
+        })
+      }
+
+      // Store vote data
+      cardVoteCounts.forEach((total, cardId) => {
+        voteData.cardVotes.set(cardId, {
+          total,
+          userVotes: userCardVotes.get(cardId) || 0,
+        })
+      })
+
+      groupVoteCounts.forEach((total, groupId) => {
+        voteData.groupVotes.set(groupId, {
+          total,
+          userVotes: userGroupVotes.get(groupId) || 0,
+        })
+      })
+    }
+
     res.json({
       success: true,
       data: {
@@ -308,48 +405,70 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
           description: col.description || undefined,
           color: col.color,
           sortOrder: col.sortOrder,
-          cards: col.cards.map((card) => ({
-            id: card.id,
-            content: card.content,
-            isAnonymous: card.isAnonymous,
-            authorName: card.isAnonymous ? undefined : card.author.displayName,
-            sortOrder: card.sortOrder,
-            createdAt: card.createdAt.toISOString(),
-            // Add CardDetailResponse specific fields
-            columnId: card.columnId,
-            authorId: card.authorId,
-            updatedAt: card.updatedAt.toISOString(),
-            // Add ownership flag for frontend (only if currentUserId is available)
-            ...(currentUserId && { isOwner: currentUserId === card.authorId }),
-          })),
-          cardGroups: col.cardGroups.map((group) => ({
-            id: group.id,
-            columnId: group.columnId,
-            title: group.title,
-            description: group.description || null,
-            sortOrder: group.sortOrder,
-            createdAt: group.createdAt.toISOString(),
-            updatedAt: group.updatedAt.toISOString(),
-            cards: group.cardMemberships.map((membership) => ({
-              id: membership.card.id,
-              columnId: membership.card.columnId,
-              authorId: membership.card.authorId,
-              content: membership.card.content,
-              isAnonymous: membership.card.isAnonymous,
-              sortOrder: membership.card.sortOrder,
-              createdAt: membership.card.createdAt.toISOString(),
-              updatedAt: membership.card.updatedAt.toISOString(),
+          cards: col.cards.map((card) => {
+            const cardVoteInfo = voteData.cardVotes.get(card.id)
+            return {
+              id: card.id,
+              content: card.content,
+              isAnonymous: card.isAnonymous,
+              authorName: card.isAnonymous ? undefined : card.author.displayName,
+              sortOrder: card.sortOrder,
+              createdAt: card.createdAt.toISOString(),
+              // Add CardDetailResponse specific fields
+              columnId: card.columnId,
+              authorId: card.authorId,
+              updatedAt: card.updatedAt.toISOString(),
               // Add ownership flag for frontend (only if currentUserId is available)
-              ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
-            })),
-          })),
+              ...(currentUserId && { isOwner: currentUserId === card.authorId }),
+              // Add vote information based on phase
+              ...(room.currentPhase === 'discussing' && cardVoteInfo && { voteCount: cardVoteInfo.total }),
+              ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
+            }
+          }),
+          cardGroups: col.cardGroups.map((group) => {
+            const groupVoteInfo = voteData.groupVotes.get(group.id)
+            return {
+              id: group.id,
+              columnId: group.columnId,
+              title: group.title,
+              description: group.description || null,
+              sortOrder: group.sortOrder,
+              createdAt: group.createdAt.toISOString(),
+              updatedAt: group.updatedAt.toISOString(),
+              // Add vote information based on phase
+              ...(room.currentPhase === 'discussing' && groupVoteInfo && { voteCount: groupVoteInfo.total }),
+              ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
+              cards: group.cardMemberships.map((membership) => ({
+                id: membership.card.id,
+                columnId: membership.card.columnId,
+                authorId: membership.card.authorId,
+                content: membership.card.content,
+                isAnonymous: membership.card.isAnonymous,
+                sortOrder: membership.card.sortOrder,
+                createdAt: membership.card.createdAt.toISOString(),
+                updatedAt: membership.card.updatedAt.toISOString(),
+                // Add ownership flag for frontend (only if currentUserId is available)
+                ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
+                // Cards in groups don't show individual vote counts
+              })),
+            }
+          }),
         })),
-        participants: room.participants.map((p) => ({
-          id: p.user.id,
-          displayName: p.user.displayName,
-          role: p.role,
-          joinedAt: p.joinedAt.toISOString(),
-        })),
+        participants: room.participants.map((p) => {
+          const participantVoteInfo = voteData.participantVotes.get(p.user.id)
+          return {
+            id: p.user.id,
+            displayName: p.user.displayName,
+            role: p.role,
+            joinedAt: p.joinedAt.toISOString(),
+            // Add vote information during voting phase
+            ...(room.currentPhase === 'voting' &&
+              participantVoteInfo && {
+                votesUsed: participantVoteInfo.used,
+                votesRemaining: participantVoteInfo.remaining,
+              }),
+          }
+        }),
         createdAt: room.createdAt.toISOString(),
       },
       message: 'Room loaded successfully',
