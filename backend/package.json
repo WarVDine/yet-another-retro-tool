@@ -18,7 +18,8 @@
     "db:verify": "ts-node -r tsconfig-paths/register src/database/verify.ts",
     "db:reset": "npm run db:migrate && npm run db:seed",
     "db:drop": "drizzle-kit drop",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:fix-positions": "ts-node -r tsconfig-paths/register src/database/migrations/fix-card-positions.ts"
   },
   "dependencies": {
     "@yet-another-retro-tool/shared": "file:../shared",

@@ -8,11 +8,19 @@ import {
   resolveGuestUser,
   validateRoomParticipant,
   validateCardOwnership,
+  validateFacilitatorRole,
   getRoomIdFromColumn,
   getRoomIdFromCard,
 } from '@/middleware/auth'
 import { CustomResponse } from '@/types'
-import { CreateCardRequest, UpdateCardRequest, CardDetailResponse } from '@yet-another-retro-tool/shared'
+import {
+  CreateCardRequest,
+  UpdateCardRequest,
+  MoveCardRequest,
+  UpdateCardPositionRequest,
+  CardDetailResponse,
+} from '@yet-another-retro-tool/shared'
+import { moveCardToColumn, insertCardAtPosition } from '@/utils/positionUtils'
 
 /**
  * Create a new card
@@ -282,6 +290,201 @@ export const deleteCard = asyncHandler(async (req: Request, res: CustomResponse<
       success: false,
       error: 'Server Error',
       message: 'Failed to delete card',
+    })
+  }
+})
+
+/**
+ * Move a card to a different column
+ * PATCH /api/cards/:id/move
+ */
+export const moveCard = asyncHandler(async (req: Request, res: CustomResponse<CardDetailResponse>) => {
+  const cardId = req.params.id
+  const { targetColumnId, targetPosition, guestId } = req.body as MoveCardRequest
+
+  // Validate required fields
+  if (!cardId || !targetColumnId || !guestId) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'cardId, targetColumnId and guestId are required',
+    })
+    return
+  }
+
+  try {
+    // Resolve guest user
+    const userId = await resolveGuestUser(guestId)
+
+    // Get room ID from the card's current column
+    const cardRoomId = await getRoomIdFromCard(cardId)
+    if (!cardRoomId) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found',
+      })
+      return
+    }
+
+    // Validate user is a facilitator of the room
+    const isFacilitator = await validateFacilitatorRole(userId, cardRoomId)
+    if (!isFacilitator) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'Only facilitators can move cards',
+      })
+      return
+    }
+
+    // Validate target column belongs to the same room
+    const targetRoomId = await getRoomIdFromColumn(targetColumnId)
+    if (!targetRoomId || targetRoomId !== cardRoomId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Target column must be in the same room as the card',
+      })
+      return
+    }
+
+    // Move the card
+    await moveCardToColumn(cardId, targetColumnId, targetPosition)
+
+    // Fetch and return updated card
+    const [updatedCard] = await db.select().from(cards).where(eq(cards.id, cardId))
+
+    if (!updatedCard) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found after move',
+      })
+      return
+    }
+
+    const cardResponse: CardDetailResponse = {
+      id: updatedCard.id,
+      content: updatedCard.content,
+      isAnonymous: updatedCard.isAnonymous,
+      sortOrder: updatedCard.sortOrder,
+      createdAt: updatedCard.createdAt.toISOString(),
+      columnId: updatedCard.columnId,
+      authorId: updatedCard.authorId,
+      updatedAt: updatedCard.updatedAt.toISOString(),
+      isOwner: true, // User owns the card since they moved it
+    }
+
+    res.json({
+      success: true,
+      data: cardResponse,
+      message: 'Card moved successfully',
+    })
+  } catch (error) {
+    console.error('Error moving card:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to move card',
+    })
+  }
+})
+
+/**
+ * Update a card's position within its column
+ * PATCH /api/cards/:id/position
+ */
+export const updateCardPosition = asyncHandler(async (req: Request, res: CustomResponse<CardDetailResponse>) => {
+  const cardId = req.params.id
+  const { sortOrder, guestId } = req.body as UpdateCardPositionRequest
+
+  // Validate required fields
+  if (!cardId || sortOrder === undefined || !guestId) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'cardId, sortOrder and guestId are required',
+    })
+    return
+  }
+
+  try {
+    // Resolve guest user
+    const userId = await resolveGuestUser(guestId)
+
+    // Get room ID from the card
+    const roomId = await getRoomIdFromCard(cardId)
+    if (!roomId) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found',
+      })
+      return
+    }
+
+    // Validate user is a facilitator of the room
+    const isFacilitator = await validateFacilitatorRole(userId, roomId)
+    if (!isFacilitator) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'Only facilitators can reorder cards',
+      })
+      return
+    }
+
+    // Get current card to find its column
+    const [currentCard] = await db.select().from(cards).where(eq(cards.id, cardId))
+
+    if (!currentCard) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found',
+      })
+      return
+    }
+
+    // Update position within the same column
+    await insertCardAtPosition(cardId, currentCard.columnId, sortOrder)
+
+    // Fetch and return updated card
+    const [updatedCard] = await db.select().from(cards).where(eq(cards.id, cardId))
+
+    if (!updatedCard) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found after position update',
+      })
+      return
+    }
+
+    const cardResponse: CardDetailResponse = {
+      id: updatedCard.id,
+      content: updatedCard.content,
+      isAnonymous: updatedCard.isAnonymous,
+      sortOrder: updatedCard.sortOrder,
+      createdAt: updatedCard.createdAt.toISOString(),
+      columnId: updatedCard.columnId,
+      authorId: updatedCard.authorId,
+      updatedAt: updatedCard.updatedAt.toISOString(),
+      isOwner: true, // User owns the card since they updated it
+    }
+
+    res.json({
+      success: true,
+      data: cardResponse,
+      message: 'Card position updated successfully',
+    })
+  } catch (error) {
+    console.error('Error updating card position:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: 'Failed to update card position',
     })
   }
 })

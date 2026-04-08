@@ -110,7 +110,8 @@ export interface DetailedColumnResponse {
   description?: string | undefined
   color: string
   sortOrder: number
-  cards: CardResponse[]
+  cards: CardDetailResponse[]
+  cardGroups: CardGroupResponse[]
 }
 
 export interface CardResponse {
@@ -134,6 +135,17 @@ export interface UpdateCardRequest {
   guestId: string
 }
 
+export interface MoveCardRequest {
+  targetColumnId: string
+  targetPosition?: number // Optional sort order
+  guestId: string
+}
+
+export interface UpdateCardPositionRequest {
+  sortOrder: number
+  guestId: string
+}
+
 export interface CardDetailResponse extends CardResponse {
   columnId: string
   authorId: string
@@ -146,4 +158,43 @@ export interface ParticipantResponse {
   displayName: string
   role: 'facilitator' | 'participant'
   joinedAt: string
+}
+
+export interface UpdateRoomPhaseRequest {
+  phase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
+  guestId: string
+}
+
+// Card group types
+export interface CreateCardGroupRequest {
+  columnId: string
+  title: string
+  cardIds: string[] // Initial cards to add to the group
+  guestId: string
+}
+
+export interface UpdateCardGroupRequest {
+  title?: string
+  guestId: string
+}
+
+export interface AddCardsToGroupRequest {
+  cardIds: string[]
+  guestId: string
+}
+
+export interface RemoveCardsFromGroupRequest {
+  cardIds: string[]
+  guestId: string
+}
+
+export interface CardGroupResponse {
+  id: string
+  columnId: string
+  title: string | null
+  description: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  cards: CardDetailResponse[]
 }

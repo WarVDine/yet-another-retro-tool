@@ -12,9 +12,21 @@ interface RetroCardProps {
   onEditStart?: (cardId: string) => void
   onEditEnd?: () => void
   disabled?: boolean
+  showBlur?: boolean // Whether to apply blur effect for non-owned cards
+  isDraggable?: boolean // Whether this card is in a draggable context
 }
 
-export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, onEditEnd, disabled = false }: RetroCardProps) {
+export function RetroCard({
+  card,
+  columnColor,
+  onUpdate,
+  onDelete,
+  onEditStart,
+  onEditEnd,
+  disabled = false,
+  showBlur = true,
+  isDraggable = false,
+}: RetroCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(card.content)
   const [isLoading, setIsLoading] = useState(false)
@@ -34,12 +46,7 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, 
   // Handle click outside to save changes
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        isEditing &&
-        cardRef.current &&
-        !cardRef.current.contains(event.target as Node) &&
-        !isLoading
-      ) {
+      if (isEditing && cardRef.current && !cardRef.current.contains(event.target as Node) && !isLoading) {
         handleSave()
       }
     }
@@ -122,9 +129,8 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, 
       ref={cardRef}
       className={`
         relative group bg-white rounded-lg border-2 shadow-sm transition-all duration-200
-        ${card.isOwner ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}
+        ${isDraggable ? '' : (card.isOwner ? 'cursor-pointer hover:shadow-md' : 'cursor-default')}
         ${isEditing ? 'ring-2 ring-blue-500 shadow-md' : 'border-gray-200'}
-        ${disabled ? 'opacity-50' : ''}
       `}
       style={{
         borderLeftColor: columnColor,
@@ -141,27 +147,25 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, 
         />
       )}
 
-      <div className='p-3'>
+      <div className="p-3">
         {isEditing ? (
-          <div className='space-y-2'>
+          <div className="space-y-2">
             <Textarea
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isLoading}
-              className='min-h-[60px] resize-none border-none p-0 focus-visible:ring-0'
-              placeholder='Enter your thoughts...'
+              className="min-h-[60px] resize-none border-none p-0 focus-visible:ring-0"
+              placeholder="Enter your thoughts..."
               maxLength={500}
             />
-            
-            {error && (
-              <p className='text-xs text-red-600'>{error}</p>
-            )}
-            
-            <div className='flex justify-between items-center text-xs text-gray-500'>
+
+            {error && <p className="text-xs text-red-600">{error}</p>}
+
+            <div className="flex justify-between items-center text-xs text-gray-500">
               <span>{content.length}/500</span>
-              <div className='flex gap-2'>
+              <div className="flex gap-2">
                 <span>Enter to save</span>
                 <span>•</span>
                 <span>Clear text + Enter to delete</span>
@@ -171,13 +175,15 @@ export function RetroCard({ card, columnColor, onUpdate, onDelete, onEditStart, 
             </div>
           </div>
         ) : (
-          <div className='space-y-2'>
-            <p className={`text-sm text-gray-900 whitespace-pre-wrap break-words ${!card.isOwner ? 'blur-sm' : ''}`}>
+          <div className="space-y-2">
+            <p
+              className={`text-sm text-gray-900 whitespace-pre-wrap break-words ${showBlur && !card.isOwner ? 'blur-sm' : ''}`}
+            >
               {card.content}
             </p>
-            
+
             {card.isOwner && !disabled && (
-              <p className='text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity'>
+              <p className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
                 Click to edit
               </p>
             )}

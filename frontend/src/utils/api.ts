@@ -6,10 +6,18 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
   DetailedRoomResponse,
+  UpdateRoomPhaseRequest,
   GuestUserResponse,
   CreateCardRequest,
   UpdateCardRequest,
+  MoveCardRequest,
+  UpdateCardPositionRequest,
   CardDetailResponse,
+  CreateCardGroupRequest,
+  UpdateCardGroupRequest,
+  AddCardsToGroupRequest,
+  RemoveCardsFromGroupRequest,
+  CardGroupResponse,
 } from '@yet-another-retro-tool/shared'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -119,6 +127,10 @@ export const roomApi = {
     const queryParam = guestId ? `?guestId=${encodeURIComponent(guestId)}` : ''
     return apiClient.get<DetailedRoomResponse>(`/rooms/${roomId}${queryParam}`)
   },
+
+  updateRoomPhase: async (roomId: string, request: UpdateRoomPhaseRequest): Promise<RoomResponse> => {
+    return apiClient.patch<RoomResponse>(`/rooms/${roomId}/phase`, request)
+  },
 }
 
 // Card API methods
@@ -133,5 +145,36 @@ export const cardApi = {
 
   deleteCard: async (cardId: string, guestId: string): Promise<void> => {
     return apiClient.delete<void>(`/cards/${cardId}`, { guestId })
+  },
+
+  moveCard: async (cardId: string, request: MoveCardRequest): Promise<CardDetailResponse> => {
+    return apiClient.patch<CardDetailResponse>(`/cards/${cardId}/move`, request)
+  },
+
+  updateCardPosition: async (cardId: string, request: UpdateCardPositionRequest): Promise<CardDetailResponse> => {
+    return apiClient.patch<CardDetailResponse>(`/cards/${cardId}/position`, request)
+  },
+}
+
+// Card group API methods
+export const cardGroupApi = {
+  createCardGroup: async (request: CreateCardGroupRequest): Promise<CardGroupResponse> => {
+    return apiClient.post<CardGroupResponse>('/card-groups', request)
+  },
+
+  updateCardGroup: async (groupId: string, request: UpdateCardGroupRequest): Promise<CardGroupResponse> => {
+    return apiClient.patch<CardGroupResponse>(`/card-groups/${groupId}`, request)
+  },
+
+  deleteCardGroup: async (groupId: string, guestId: string): Promise<void> => {
+    return apiClient.delete<void>(`/card-groups/${groupId}`, { guestId })
+  },
+
+  addCardsToGroup: async (groupId: string, request: AddCardsToGroupRequest): Promise<CardGroupResponse> => {
+    return apiClient.post<CardGroupResponse>(`/card-groups/${groupId}/cards`, request)
+  },
+
+  removeCardsFromGroup: async (groupId: string, request: RemoveCardsFromGroupRequest): Promise<CardGroupResponse | void> => {
+    return apiClient.delete<CardGroupResponse | void>(`/card-groups/${groupId}/cards`, request)
   },
 }
