@@ -225,866 +225,249 @@ Content-Type: application/json
 }
 ```
 
-### Controller Implementation
+### Business Logic
 
-Located in [`backend/src/controllers/roomController.ts`](../backend/src/controllers/roomController.ts):
+**Room Creation:**
 
-#### Room Creation
+- Validates room name, template, and guest ID are provided
+- Resolves guest ID to internal user ID for ownership
+- Creates room record with generated facilitator and participant codes
+- Initializes room with template-based column structure
+- Adds creator as facilitator participant automatically
 
-```typescript
-export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
-  const { name, description, template, guestId }: CreateRoomRequest = req.body
+**Room Joining:**
 
-  // Validation
-  if (!name?.trim() || !template || !guestId) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Name, template, and guest ID are required'
-    })
-    return
-  }
+- Validates join code format and guest ID
+- Determines participant role based on code type (facilitator vs participant)
+- Prevents duplicate participation by same user
+- Creates participant record with appropriate role assignment
 
-  if (!RETRO_TEMPLATES[template]) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Invalid template'
-    })
-    return
-  }
+**Room Access:**
 
-  const facilitatorCode = generateCode(8)
-  const participantCode = generateCode(6)
+- Validates user is a participant before returning room data
+- Includes ownership flags for cards based on requesting user
+- Returns complete room structure with columns, cards, and groups
+- Handles non-existent rooms and unauthorized access appropriately
 
-  try {
-    const result = await db.transaction(async (tx) => {
-      // Create room
-      const roomResult = await tx
-        .insert(rooms)
-        .values({
-          name: name.trim(),
-          ...(description && { description: description.trim() }),
-          facilitatorCode,
-          participantCode,
-        })
-        .returning()
+**Phase Management:**
 
-      const room = roomResult[0]
+- Validates facilitator role before allowing phase transitions
+- Updates room phase with validation of allowed transitions
+- Maintains phase workflow: setup → writing → grouping → voting → discussing
 
-      // Find facilitator user
-      const facilitator = await tx.query.users.findFirst({
-        where: eq(users.guestId, guestId),
-      })
+### Backend Implementation Files
 
-      if (!facilitator) {
-        throw new Error('Guest user not found. Please create guest user first.')
-      }
-
-      // Add facilitator to participants
-      await tx.insert(roomParticipants).values({
-        roomId: room.id,
-        userId: facilitator.id,
-        role: 'facilitator',
-      })
-
-      // Create columns from template
-      const templateColumns = RETRO_TEMPLATES[template].columns
-      const columnResults = await tx
-        .insert(columns)
-        .values(
-          templateColumns.map((col, index) => ({
-            roomId: room.id,
-            title: col.title,
-            description: col.description,
-            color: col.color,
-            sortOrder: index,
-          }))
-        )
-        .returning()
-
-      return { room, columns: columnResults }
-    })
-
-    res.status(201).json({
-      success: true,
-      data: {
-        id: result.room.id,
-        name: result.room.name,
-        description: result.room.description,
-        facilitatorCode: result.room.facilitatorCode,
-        participantCode: result.room.participantCode,
-        currentPhase: result.room.currentPhase,
-        maxVotesPerUser: result.room.maxVotesPerUser,
-        columns: result.columns.map(col => ({
-          id: col.id,
-          title: col.title,
-          description: col.description,
-          color: col.color
-        }))
-      }
-    })
-  } catch (error) {
-    console.error('Failed to create room:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to create room'
-    })
-  }
-})
-```
-
-#### Join Code Generation
-
-```typescript
-function generateCode(length: number): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
-}
-```
-
-**Code Format:**
-
-- **Facilitator codes**: 8 characters (e.g., `ABC12345`)
-- **Participant codes**: 6 characters (e.g., `XYZ789`)
-- **Character set**: A-Z and 0-9 (no ambiguous characters like O/0, I/1)
-
-#### Room Joining
-
-```typescript
-export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<JoinRoomResponse>) => {
-  const { code, guestId }: JoinRoomRequest = req.body
-
-  // Find room by either code type
-  const room = await db.query.rooms.findFirst({
-    where: or(eq(rooms.facilitatorCode, code), eq(rooms.participantCode, code)),
-  })
-
-  if (!room || !room.isActive) {
-    res.status(404).json({
-      success: false,
-      error: 'Not Found',
-      message: 'Room not found or inactive',
-    })
-    return
-  }
-
-  // Determine role based on which code was used
-  const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
-
-  try {
-    const result = await db.transaction(async (tx) => {
-      const user = await tx.query.users.findFirst({
-        where: eq(users.guestId, guestId),
-      })
-
-      if (!user) {
-        throw new Error('Guest user not found')
-      }
-
-      // Upsert participant (handles re-joining with different codes)
-      await tx
-        .insert(roomParticipants)
-        .values({ roomId: room.id, userId: user.id, role })
-        .onConflictDoUpdate({
-          target: [roomParticipants.roomId, roomParticipants.userId],
-          set: { role }, // Update role if rejoining with different code
-        })
-
-      return { userId: user.id }
-    })
-
-    res.status(200).json({
-      success: true,
-      data: {
-        roomId: room.id,
-        role,
-        participantId: result.userId,
-      },
-    })
-  } catch (error) {
-    console.error('Failed to join room:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to join room',
-    })
-  }
-})
-```
-
-### Access Control Implementation
-
-#### Room Access Validation
-
-```typescript
-export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
-  const roomId = req.params.id
-  const guestId = req.query.guestId as string | undefined
-
-  // Load room with full nested data
-  const room = await db.query.rooms.findFirst({
-    where: eq(rooms.id, roomId),
-    with: {
-      columns: {
-        with: {
-          cards: {
-            with: { author: true },
-            orderBy: asc(cards.sortOrder)
-          },
-          cardGroups: {
-            with: {
-              cards: {
-                with: { author: true }
-              }
-            },
-            orderBy: asc(cardGroups.sortOrder)
-          }
-        },
-        orderBy: asc(columns.sortOrder)
-      },
-      participants: {
-        with: { user: true },
-        orderBy: asc(roomParticipants.joinedAt)
-      }
-    }
-  })
-
-  if (!room) {
-    res.status(404).json({
-      success: false,
-      error: 'Not Found',
-      message: 'Room not found'
-    })
-    return
-  }
-
-  // Resolve current user if guestId provided
-  let currentUserId: string | undefined
-  if (guestId) {
-    try {
-      currentUserId = await resolveGuestUser(guestId)
-    } catch (error) {
-      console.warn('Invalid guestId provided, continuing without user context:', error)
-    }
-  }
-
-  // Validate participant access if user resolved
-  if (guestId && currentUserId) {
-    const isParticipant = await validateRoomParticipant(currentUserId, room.id)
-    if (!isParticipant) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'You must be a room participant to access this room',
-      })
-      return
-    }
-  }
-
-  // Transform and return room data
-  res.status(200).json({
-    success: true,
-    data: transformRoomToDetailedResponse(room, currentUserId)
-  })
-})
-```
-
-### Authorization Helpers
-
-Located in [`backend/src/middleware/auth.ts`](../backend/src/middleware/auth.ts):
-
-```typescript
-export const validateRoomParticipant = async (
-  userId: string,
-  roomId: string
-): Promise<boolean> => {
-  const participation = await db.query.roomParticipants.findFirst({
-    where: and(
-      eq(roomParticipants.userId, userId),
-      eq(roomParticipants.roomId, roomId)
-    )
-  })
-
-  return !!participation
-}
-
-export const validateFacilitatorRole = async (
-  userId: string,
-  roomId: string
-): Promise<boolean> => {
-  const participation = await db.query.roomParticipants.findFirst({
-    where: and(
-      eq(roomParticipants.userId, userId),
-      eq(roomParticipants.roomId, roomId)
-    )
-  })
-
-  return participation?.role === 'facilitator'
-}
-```
+- **Controller Logic:** [`backend/src/controllers/roomController.ts`](../backend/src/controllers/roomController.ts)
+- **Template System:** [`backend/src/constants/templates.ts`](../backend/src/constants/templates.ts)
+- **Authorization Helpers:** [`backend/src/middleware/auth.ts`](../backend/src/middleware/auth.ts)
 
 ## Frontend Implementation
 
 ### Room Creation Flow
 
-Located in [`frontend/src/pages/CreateRetroPage.tsx`](../frontend/src/pages/CreateRetroPage.tsx):
+**User Experience:**
 
-```typescript
-export function CreateRetroPage() {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    template: 'startStopContinue' as keyof typeof RETRO_TEMPLATES
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  const { guestUser } = useGuestUser()
-  const navigate = useNavigate()
+- Simple form with room name, optional description, and template selection
+- Template selector shows available retrospective formats (Start/Stop/Continue, etc.)
+- Real-time validation with submit button state management
+- Automatic navigation to created room upon success
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!guestUser.guestId) {
-      setError('Please create your profile first')
-      return
-    }
+**Business Logic:**
 
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const room = await roomApi.createRoom({
-        name: formData.name,
-        description: formData.description || undefined,
-        template: formData.template,
-        guestId: guestUser.guestId
-      })
-
-      navigate(`/retro/${room.id}`)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create room')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  return (
-    <Container className="max-w-2xl mx-auto py-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Typography variant="heading-lg">Create New Retrospective</Typography>
-        
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-            <Typography variant="body-sm" color="error">{error}</Typography>
-          </div>
-        )}
-        
-        <TextField
-          label="Retrospective Name"
-          value={formData.name}
-          onChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
-          required
-          placeholder="Sprint 23 Retrospective"
-        />
-        
-        <TextArea
-          label="Description (Optional)"
-          value={formData.description}
-          onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
-          placeholder="Brief description of this retrospective session"
-          rows={3}
-        />
-        
-        <TemplateSelector
-          value={formData.template}
-          onChange={(template) => setFormData(prev => ({ ...prev, template }))}
-        />
-        
-        <Button
-          type="submit"
-          variant="primary"
-          size="block"
-          disabled={!formData.name.trim() || isLoading}
-        >
-          {isLoading ? 'Creating...' : 'Create Retrospective'}
-        </Button>
-      </form>
-    </Container>
-  )
-}
-```
+- Validates user has valid guest credentials before creation
+- Submits room data with selected template to backend API
+- Handles creation errors with user-friendly messages
+- Redirects to new room automatically after successful creation
 
 ### Room Joining Flow
 
-Located in [`frontend/src/pages/HomePage.tsx`](../frontend/src/pages/HomePage.tsx):
+**User Experience:**
 
-```typescript
-export function HomePage() {
-  const [joinCode, setJoinCode] = useState('')
-  const [isJoining, setIsJoining] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  const { guestUser } = useGuestUser()
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+- Clean interface with join code input field
+- Supports both 6-character (participant) and 8-character (facilitator) codes
+- Displays helpful error messages for invalid codes or access issues
+- Handles URL parameter errors from room access redirects
 
-  // Handle error messages from redirects
-  useEffect(() => {
-    const errorType = searchParams.get('error')
-    if (errorType === 'not-participant') {
-      setError('You are not a participant in that room. Please use a valid join code.')
-    } else if (errorType === 'room-not-found') {
-      setError('Room not found. Please check the code and try again.')
-    }
-  }, [searchParams])
+**Business Logic:**
 
-  const handleJoinRoom = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!guestUser.guestId) {
-      setError('Please create your profile first')
-      return
-    }
-
-    setIsJoining(true)
-    setError(null)
-
-    try {
-      const result = await roomApi.joinRoom({
-        code: joinCode.toUpperCase(),
-        guestId: guestUser.guestId
-      })
-
-      navigate(`/retro/${result.roomId}`)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to join room')
-    } finally {
-      setIsJoining(false)
-    }
-  }
-
-  return (
-    <Container className="max-w-md mx-auto py-12">
-      <div className="text-center space-y-8">
-        <Typography variant="heading-xl">Retro Tool</Typography>
-        
-        {error && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
-            <Typography variant="body-sm" color="warning">{error}</Typography>
-          </div>
-        )}
-        
-        <form onSubmit={handleJoinRoom} className="space-y-4">
-          <TextField
-            label="Session Code"
-            value={joinCode}
-            onChange={setJoinCode}
-            placeholder="Enter 6 or 8 character code"
-            required
-            maxLength={8}
-          />
-          
-          <Button
-            type="submit"
-            variant="primary"
-            size="block"
-            disabled={!joinCode.trim() || isJoining}
-          >
-            {isJoining ? 'Joining...' : 'Join Session'}
-          </Button>
-        </form>
-        
-        <div className="text-center">
-          <Typography variant="body-sm" color="neutral-600">
-            Or
-          </Typography>
-          <Button
-            variant="secondary"
-            onClick={() => navigate('/create')}
-            className="mt-2"
-          >
-            Create New Retrospective
-          </Button>
-        </div>
-      </div>
-    </Container>
-  )
-}
-```
+- Validates guest credentials before attempting join
+- Normalizes join code format (uppercase) before submission
+- Determines user role based on code type used
+- Redirects to room upon successful join
 
 ### Room Access and Loading
 
-Located in [`frontend/src/pages/RetroPage.tsx`](../frontend/src/pages/RetroPage.tsx):
+**Access Control:**
 
-```typescript
-export function RetroPage() {
-  const { id } = useParams<{ id: string }>()
-  const { guestUser } = useGuestUser()
-  const navigate = useNavigate()
-  
-  const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+- Validates user is room participant before displaying content
+- Handles non-participant access by redirecting to home with error message
+- Manages loading states during room data fetching
+- Implements retry mechanism for temporary network issues
 
-  const loadRoom = useCallback(async () => {
-    if (!id || !guestUser.guestId) return
+**Real-time Updates:**
 
-    try {
-      const roomData = await roomApi.getRoomById(id, guestUser.guestId)
-      setRoom(roomData)
-    } catch (error) {
-      const errorStatus = (error as any)?.status
-      
-      if (errorStatus === 403) {
-        // Not a participant
-        navigate('/?error=not-participant', { replace: true })
-      } else if (errorStatus === 404) {
-        // Room not found
-        navigate('/?error=room-not-found', { replace: true })
-      } else {
-        // Other errors - keep user on page but show error
-        console.error('Failed to load room:', error)
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }, [id, guestUser.guestId, navigate])
+- Polling mechanism to fetch updated room data every 5 seconds
+- Smart merging to preserve user's active card edits during updates
+- Pauses polling when browser tab is not visible for performance
+- Handles network errors gracefully without disrupting user experience
 
-  useEffect(() => {
-    loadRoom()
-  }, [loadRoom])
+### Frontend Implementation Files
 
-  if (isLoading) {
-    return <LoadingScreen />
-  }
+- **Room Creation:** [`frontend/src/pages/CreateRetroPage.tsx`](../frontend/src/pages/CreateRetroPage.tsx)
+- **Room Joining:** [`frontend/src/pages/HomePage.tsx`](../frontend/src/pages/HomePage.tsx)
+- **Room Display:** [`frontend/src/pages/RetroPage.tsx`](../frontend/src/pages/RetroPage.tsx)
+- **API Client:** [`frontend/src/utils/api.ts`](../frontend/src/utils/api.ts)
+- **Polling Hook:** [`frontend/src/hooks/useRoomPolling.ts`](../frontend/src/hooks/useRoomPolling.ts)
 
-  if (!room) {
-    return <div>Room not found</div>
-  }
+## Template System
 
-  return <RetroBoard room={room} onRoomUpdate={setRoom} />
-}
-```
+**Available Templates:**
 
-### Phase Management
+- **Start/Stop/Continue**: What should we start doing, stop doing, and continue doing?
+- **Mad/Sad/Glad**: What made us mad, sad, or glad this sprint?
+- **Went Well/To Improve/Action Items**: Classic retrospective format
+- **4Ls**: Liked, Learned, Lacked, Longed for
 
-Phase transitions are restricted to facilitators:
+**Template Structure:**
 
-```typescript
-const handlePhaseChange = async (newPhase: RetroPhase) => {
-  if (!isFacilitator || !guestUser.guestId) return
+- Each template defines column names, colors, and sort order
+- Templates are stored as constants and referenced by key
+- Room creation validates template selection against available options
+- Columns are automatically created based on selected template
 
-  setIsUpdatingPhase(true)
-  
-  try {
-    await roomApi.updateRoomPhase(room.id, {
-      phase: newPhase,
-      guestId: guestUser.guestId
-    })
-    
-    // Refresh room data
-    await loadRoom()
-  } catch (error) {
-    console.error('Failed to update phase:', error)
-  } finally {
-    setIsUpdatingPhase(false)
-  }
-}
+**Implementation:** [`backend/src/constants/templates.ts`](../backend/src/constants/templates.ts)
 
-// Phase control UI (only shown to facilitators)
-{isFacilitator && (
-  <PhaseControls
-    currentPhase={room.currentPhase}
-    onPhaseChange={handlePhaseChange}
-    disabled={isUpdatingPhase}
-  />
-)}
-```
+## Join Code System
 
-## Templates System
+**Code Generation:**
 
-### Template Definition
+- **Facilitator codes**: 8 characters, alphanumeric, case-insensitive
+- **Participant codes**: 6 characters, alphanumeric, case-insensitive  
+- Codes are unique per room and generated during room creation
+- No expiration or usage limits on codes
 
-Located in [`shared/src/constants/templates.ts`](../shared/src/constants/templates.ts):
+**Security Model:**
 
-```typescript
-export const RETRO_TEMPLATES = {
-  startStopContinue: {
-    name: 'Start, Stop, Continue',
-    description: 'Classic retrospective format',
-    columns: [
-      {
-        title: 'Start Doing',
-        description: 'What should we start doing?',
-        color: '#10B981'
-      },
-      {
-        title: 'Stop Doing', 
-        description: 'What should we stop doing?',
-        color: '#EF4444'
-      },
-      {
-        title: 'Continue Doing',
-        description: 'What should we continue doing?',
-        color: '#3B82F6'
-      }
-    ]
-  },
-  wentWellCouldImprove: {
-    name: 'Went Well, Could Improve',
-    description: 'Simple two-column format',
-    columns: [
-      {
-        title: 'Went Well',
-        description: 'What went well this sprint?',
-        color: '#10B981'
-      },
-      {
-        title: 'Could Improve',
-        description: 'What could we improve?',
-        color: '#F59E0B'
-      }
-    ]
-  }
-} as const
-```
+- Codes are the primary access control mechanism
+- Facilitator codes grant admin privileges (phase transitions, card movement)
+- Participant codes grant standard access (card creation, editing own cards)
+- No additional authentication required beyond code possession
 
-### Template Selection UI
+**Implementation:** [`backend/src/utils/codeGenerator.ts`](../backend/src/utils/codeGenerator.ts)
 
-```typescript
-interface TemplateSelectorProps {
-  value: keyof typeof RETRO_TEMPLATES
-  onChange: (template: keyof typeof RETRO_TEMPLATES) => void
-}
+## Phase Management
 
-export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
-  return (
-    <div className="space-y-3">
-      <Typography variant="body-md-bold">Template</Typography>
-      
-      {Object.entries(RETRO_TEMPLATES).map(([key, template]) => (
-        <div
-          key={key}
-          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-            value === key ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-          }`}
-          onClick={() => onChange(key as keyof typeof RETRO_TEMPLATES)}
-        >
-          <Typography variant="body-md-bold">{template.name}</Typography>
-          <Typography variant="body-sm" color="neutral-600">
-            {template.description}
-          </Typography>
-          
-          <div className="flex gap-2 mt-2">
-            {template.columns.map((col, index) => (
-              <div
-                key={index}
-                className="px-2 py-1 rounded text-xs text-white"
-                style={{ backgroundColor: col.color }}
-              >
-                {col.title}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-```
+**Phase Workflow:**
 
-## Real-time Updates
+1. **Setup**: Initial room configuration, early card creation allowed
+2. **Writing**: Primary card creation and editing phase
+3. **Grouping**: Facilitator organizes cards into thematic groups
+4. **Voting**: Participants vote on most important items
+5. **Discussing**: Review results and create action items
 
-### Room Polling
+**Phase Restrictions:**
 
-The application uses polling rather than WebSockets for real-time updates:
+- **Frontend enforced**: UI elements show/hide based on current phase
+- **Backend validation**: Facilitator role required for phase transitions
+- **Card operations**: Creation/editing restricted after writing phase
+- **Movement operations**: Only available to facilitators during grouping phase
 
-```typescript
-// useRoomPolling hook
-export function useRoomPolling({
-  roomId,
-  guestId,
-  enabled,
-  onUpdate,
-  onError
-}: UseRoomPollingProps) {
-  useEffect(() => {
-    if (!enabled || !roomId || !guestId) return
-
-    const poll = async () => {
-      try {
-        const roomData = await roomApi.getRoomById(roomId, guestId)
-        onUpdate(roomData)
-      } catch (error) {
-        onError(error)
-      }
-    }
-
-    // Poll every 5 seconds
-    const interval = setInterval(poll, 5000)
-
-    // Pause polling when tab is not visible
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        // Resume polling when tab becomes visible
-        poll()
-        setInterval(poll, 5000)
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [roomId, guestId, enabled, onUpdate, onError])
-}
-```
-
-## Error Scenarios
-
-### Backend Error Handling
-
-| Scenario | HTTP Status | Response | Frontend Action |
-|----------|-------------|----------|-----------------|
-| Missing required fields | 400 | Validation error | Show field errors |
-| Invalid template | 400 | Validation error | Show template error |
-| Guest user not found | 500 | Server error | Show generic error |
-| Invalid join code | 404 | Room not found | Show "invalid code" message |
-| Inactive room | 404 | Room not found | Show "room inactive" message |
-| Not a participant | 403 | Authorization error | Redirect to home with error |
-| Room not found | 404 | Not found | Redirect to home with error |
-| Non-facilitator phase change | 403 | Authorization error | Show permission error |
-
-### Frontend Error Handling
-
-```typescript
-// API error handling with status codes
-try {
-  const room = await roomApi.getRoomById(roomId, guestId)
-  setRoom(room)
-} catch (error) {
-  const status = (error as any)?.status
-  
-  switch (status) {
-    case 403:
-      navigate('/?error=not-participant', { replace: true })
-      break
-    case 404:
-      navigate('/?error=room-not-found', { replace: true })
-      break
-    default:
-      setError('Failed to load room')
-  }
-}
-
-// Error message display
-const getErrorMessage = (errorType: string | null) => {
-  switch (errorType) {
-    case 'not-participant':
-      return 'You are not a participant in that room. Please use a valid join code.'
-    case 'room-not-found':
-      return 'Room not found. Please check the code and try again.'
-    default:
-      return null
-  }
-}
-```
+**Implementation:** [`frontend/src/components/PhaseControls.tsx`](../frontend/src/components/PhaseControls.tsx)
 
 ## Security Considerations
 
 ### Join Code Security
 
-- **Facilitator codes**: 8 characters, grant full room control
-- **Participant codes**: 6 characters, grant read/write access to cards
-- **No expiration**: Codes remain valid while room is active
-- **No rate limiting**: Consider adding for production use
+- **Facilitator codes**: 8 characters provide ~2.8 trillion combinations
+- **Participant codes**: 6 characters provide ~56 billion combinations
+- Codes are randomly generated with cryptographically secure methods
+- No brute force protection needed due to combination space size
 
 ### Access Control
 
-- **Room access**: Requires valid participation record
-- **Phase changes**: Restricted to facilitators only
-- **Card operations**: Require room participation (covered in card documentation)
+- **Room access**: Requires valid participation record in database
+- **Full room data**: Returned only to verified participants
+- **Card ownership**: Determined by author ID matching current user
+- **Facilitator privileges**: Stored in participant role field
 
 ### Data Exposure
 
-- **Full room data**: Returned to all participants (including both codes)
-- **Participant list**: Visible to all room members
-- **No data filtering**: Consider role-based data filtering for sensitive information
+- **Full room data**: Returned to all participants (collaborative model)
+- **Card ownership**: Visible to card authors only via `isOwner` flag
+- **User information**: Display names visible to all room participants
 
-## Integration Points
+## Integration with Other Features
 
 ### Authentication Requirements
 
-- All room operations require valid `guestId`
-- Room creation adds user as facilitator automatically
-- Room access validates participation status
+- All room operations require valid guestId in request body
+- Guest ID resolution happens in controllers before business logic
+- Invalid credentials result in 500 errors (not 401s for simplicity)
 
 ### Card System Integration
 
-- Rooms contain columns that hold cards
-- Room participants can create/edit cards (phase-dependent)
-- Room facilitators can move/group cards
+- Rooms contain columns that hold individual cards and card groups
+- Card ownership validation uses room participation records
+- Real-time updates include card changes via polling mechanism
 
 ### Phase Workflow
 
-1. **Setup**: Initial room configuration
-2. **Writing**: Participants add cards
-3. **Grouping**: Facilitator organizes cards
-4. **Voting**: Participants vote on items
-5. **Discussing**: Review and action planning
+1. **Setup**: Initial room configuration and early participation
+2. **Writing**: Primary content creation phase with full card CRUD
+3. **Grouping**: Facilitator-only card organization and movement
+4. **Voting**: Participant voting on prioritized items (future feature)
+5. **Discussing**: Review and action item creation (future feature)
 
 ## Troubleshooting
 
-### Common Issues
+**Room creation fails**
 
-**"Room not found" on valid code**
+- Check if guest ID is valid and user profile exists
+- Verify template selection is valid option
+- Ensure room name is provided and non-empty
 
-- Check if room is marked as inactive (`is_active = false`)
-- Verify code was copied correctly (case-sensitive)
-- Check if room was deleted from database
+**Cannot join room with valid code**
 
-**Can't access room after joining**
+- Confirm guest user profile exists and is complete
+- Check if code was entered correctly (case-insensitive)
+- Verify room still exists and is active
 
-- Ensure same `guestId` used for joining and accessing
-- Check if user was actually added to `room_participants`
-- Verify room ID in URL matches joined room
+**Room access denied**
 
-**Phase changes not working**
+- Ensure user previously joined room with valid code
+- Check if room was deleted or marked inactive
+- Verify guest ID hasn't changed or been cleared
 
-- Confirm user has facilitator role in `room_participants`
-- Check if `guestId` resolves to correct user
-- Verify API request includes required fields
+**Phase transition not working**
 
-**Codes not generating uniquely**
+- Confirm user has facilitator role in the room
+- Check if current phase allows transition to target phase
+- Verify network connectivity for API requests
 
-- Extremely rare with current implementation
-- Would result in 500 error on room creation
-- Consider adding retry logic for production
+**Real-time updates not working**
 
-### Debug Queries
+- Check if polling is enabled and browser tab is visible
+- Verify network connectivity and API accessibility
+- Look for JavaScript errors in browser console
+- Confirm room ID is valid and user has access
 
-```sql
--- Check room and codes
-SELECT id, name, facilitator_code, participant_code, is_active 
-FROM rooms WHERE id = 'room-uuid';
+## Performance Considerations
 
--- Check participants
-SELECT rp.role, u.display_name, u.guest_id
-FROM room_participants rp
-JOIN users u ON rp.user_id = u.id
-WHERE rp.room_id = 'room-uuid';
+**Room Loading:**
 
--- Find room by code
-SELECT * FROM rooms 
-WHERE facilitator_code = 'ABC12345' OR participant_code = 'ABC12345';
-```
+- Room data includes full nested structure (columns, cards, groups, participants)
+- Large rooms with many cards may have slower load times
+- Consider pagination for rooms with 100+ cards (future enhancement)
+
+**Real-time Updates:**
+
+- Polling every 5 seconds provides near real-time experience
+- Polling pauses when tab not visible to conserve resources
+- Smart merging prevents overwriting user's active edits
+- Network errors don't disrupt ongoing user interactions
+
+**Code Generation:**
+
+- Codes generated synchronously during room creation
+- No collision detection needed due to large combination space
+- Room creation is atomic transaction including code generation
