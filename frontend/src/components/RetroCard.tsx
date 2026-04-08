@@ -13,6 +13,7 @@ interface RetroCardProps {
   onEditEnd?: () => void
   disabled?: boolean
   showBlur?: boolean // Whether to apply blur effect for non-owned cards
+  isDraggable?: boolean // Whether this card is in a draggable context
 }
 
 export function RetroCard({
@@ -24,6 +25,7 @@ export function RetroCard({
   onEditEnd,
   disabled = false,
   showBlur = true,
+  isDraggable = false,
 }: RetroCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [content, setContent] = useState(card.content)
@@ -127,7 +129,7 @@ export function RetroCard({
       ref={cardRef}
       className={`
         relative group bg-white rounded-lg border-2 shadow-sm transition-all duration-200
-        ${card.isOwner ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}
+        ${isDraggable ? '' : (card.isOwner ? 'cursor-pointer hover:shadow-md' : 'cursor-default')}
         ${isEditing ? 'ring-2 ring-blue-500 shadow-md' : 'border-gray-200'}
       `}
       style={{

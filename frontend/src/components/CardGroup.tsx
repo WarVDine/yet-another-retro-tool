@@ -186,6 +186,7 @@ export function CardGroup({
               onEditEnd={onCardEditEnd}
               disabled={!isGroupingPhase} // Cards are disabled outside grouping phase
               showBlur={currentPhase === 'setup' || currentPhase === 'writing'}
+              isDraggable={isFacilitator && isGroupingPhase}
             />
           </DraggableCard>
         ))}
