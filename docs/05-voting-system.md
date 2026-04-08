@@ -234,7 +234,7 @@ Cards display vote buttons during voting phase and vote counts during discussion
 #### Phase-Based Behavior
 
 - **Voting Phase**: Shows VoteButton (unless card is in a group)
-- **Discussion Phase**: Shows total vote count and user's votes
+- **Discussion Phase**: Shows total vote count with rankings (anonymous)
 - **Other Phases**: No vote-related UI
 
 ### Enhanced CardGroup Component
@@ -269,7 +269,7 @@ buttons when at limit).
 |-------|-------------------|------------------|-------------------|
 | Setup/Writing/Grouping | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | Voting | ❌ Hidden | ✅ Own votes only | ✅ Votes used/remaining |
-| Discussion | ✅ All totals | ✅ Own votes | ✅ Final totals |
+| Discussion | ✅ All totals with rankings | ❌ Hidden (anonymous) | ✅ Final totals |
 
 ## Vote Flow Sequence
 

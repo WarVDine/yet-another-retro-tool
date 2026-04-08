@@ -45,6 +45,14 @@ facilitation platform with the following key features:
 - Real-time vote tracking without revealing counts until discussion
 - Phase-based vote visibility and enforcement
 
+### 6. [Discussion Phase](06-discussion-phase.md)
+
+- Anonymous vote result display with aggregate totals
+- Visual ranking system highlighting top 3 most-voted items
+- Intelligent tie handling for consistent ranking
+- Discussion-focused UI with prominent vote counts
+- Complete anonymity maintenance (no individual vote information)
+
 ## Architecture Overview
 
 ```mermaid
@@ -70,7 +78,7 @@ flowchart TB
         Cards[cards]
         Groups[card_groups]
         Memberships[card_group_memberships]
-        Likes[likes - voting system]
+        Likes[likes - voting & discussion]
     end
     
     Frontend --> API
@@ -95,6 +103,7 @@ flowchart TB
    resolution
 5. **Grouping**: Facilitator-only drag-and-drop with position management
 6. **Voting**: Phase-restricted voting with limits and real-time tracking
+7. **Discussion**: Anonymous vote result display with ranking and highlighting
 
 ## Technology Stack
 
