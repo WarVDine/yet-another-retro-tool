@@ -1,6 +1,8 @@
 # Voting System
 
-The voting system enables participants to vote on cards and groups during the voting phase, with configurable vote limits and real-time tracking. Participants can cast multiple votes on the same target and redistribute votes by removing and adding them elsewhere.
+The voting system enables participants to vote on cards and groups during the voting phase, with configurable vote
+limits and real-time tracking. Participants can cast multiple votes on the same target and redistribute votes by removing
+and adding them elsewhere.
 
 ## Architecture Overview
 
@@ -217,45 +219,6 @@ CREATE INDEX idx_likes_created_at ON likes(created_at);
 
 Reusable voting component that handles add/remove vote actions with visual feedback.
 
-```typescript
-interface VoteButtonProps {
-  targetId: string
-  targetType: 'card' | 'group'
-  userVotes: number
-  disabled: boolean
-  canAddVote: boolean
-  onVote: (targetId: string, targetType: 'card' | 'group') => Promise<void>
-  onUnvote: (targetId: string, targetType: 'card' | 'group') => Promise<void>
-  className?: string
-}
-```
-
-#### Usage Examples
-
-```tsx
-// Card voting
-<VoteButton
-  targetId={card.id}
-  targetType="card"
-  userVotes={card.userVotes || 0}
-  disabled={false}
-  canAddVote={currentUserVotes.remaining > 0}
-  onVote={handleVote}
-  onUnvote={handleUnvote}
-/>
-
-// Group voting
-<VoteButton
-  targetId={group.id}
-  targetType="group"
-  userVotes={group.userVotes || 0}
-  disabled={false}
-  canAddVote={currentUserVotes.remaining > 0}
-  onVote={handleVote}
-  onUnvote={handleUnvote}
-/>
-```
-
 #### Visual States
 
 - **No votes**: Single thumbs-up button
@@ -268,17 +231,6 @@ interface VoteButtonProps {
 
 Cards display vote buttons during voting phase and vote counts during discussion phase.
 
-```typescript
-interface RetroCardProps {
-  // ... existing props
-  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  isInGroup?: boolean
-  canAddVote?: boolean
-  onVote?: (cardId: string, targetType: 'card' | 'group') => Promise<void>
-  onUnvote?: (cardId: string, targetType: 'card' | 'group') => Promise<void>
-}
-```
-
 #### Phase-Based Behavior
 
 - **Voting Phase**: Shows VoteButton (unless card is in a group)
@@ -288,15 +240,6 @@ interface RetroCardProps {
 ### Enhanced CardGroup Component
 
 Groups display vote buttons for the entire group and prevent individual card voting.
-
-```typescript
-interface CardGroupProps {
-  // ... existing props
-  canAddVote?: boolean
-  onVote?: (targetId: string, targetType: 'card' | 'group') => Promise<void>
-  onUnvote?: (targetId: string, targetType: 'card' | 'group') => Promise<void>
-}
-```
 
 #### Group Voting Rules
 
@@ -317,19 +260,8 @@ interface CardGroupProps {
 
 ### Vote Limit Enforcement
 
-```typescript
-// Backend validation
-if (currentVoteCount >= room.maxVotesPerUser) {
-  return res.status(403).json({
-    success: false,
-    error: 'Max Votes Exceeded',
-    message: `You have used all ${room.maxVotesPerUser} of your votes. Remove a vote before adding a new one.`
-  })
-}
-
-// Frontend validation
-const canAddVote = currentUserVotes.remaining > 0
-```
+Vote limits are enforced both on the backend (preventing API calls when at limit) and frontend (disabling vote
+buttons when at limit).
 
 ### Vote Display Rules
 
@@ -445,42 +377,17 @@ sequenceDiagram
 
 ### Unit Tests
 
-```typescript
-// Vote validation
-describe('Vote Controller', () => {
-  it('should prevent voting outside voting phase', async () => {
-    const room = { currentPhase: 'grouping' }
-    const result = await voteOnTarget(cardId, userId, room)
-    expect(result.status).toBe(409)
-    expect(result.error).toBe('Invalid Phase')
-  })
-  
-  it('should enforce vote limits', async () => {
-    const userVotes = 3
-    const maxVotes = 3
-    const result = await voteOnTarget(cardId, userId, room)
-    expect(result.status).toBe(403)
-    expect(result.error).toBe('Max Votes Exceeded')
-  })
-})
-```
+- Vote validation logic (phase restrictions, vote limits, participant validation)
+- Vote count calculations and aggregation
+- Business rule enforcement (cards in groups, target validation)
+- Error handling scenarios
 
 ### Integration Tests
 
-```typescript
-// End-to-end voting flow
-describe('Voting Integration', () => {
-  it('should complete full voting workflow', async () => {
-    // 1. Create room and participants
-    // 2. Add cards and groups
-    // 3. Transition to voting phase
-    // 4. Cast votes via API
-    // 5. Verify vote counts
-    // 6. Transition to discussion phase
-    // 7. Verify vote visibility
-  })
-})
-```
+- Complete voting workflow from API perspective
+- Database constraints and integrity
+- Phase transition behavior during voting
+- Concurrent voting scenarios and conflict resolution
 
 ### User Acceptance Tests
 
@@ -531,13 +438,7 @@ describe('Voting Integration', () => {
 
 ### Database Migration
 
-```bash
-# Apply vote constraints
-npm run db:allow-multiple-votes
-
-# Verify migration
-npm run db:studio  # Check likes table structure
-```
+Apply vote constraints with `npm run db:allow-multiple-votes` and verify with `npm run db:studio`.
 
 ### Feature Rollout
 
@@ -552,37 +453,28 @@ npm run db:studio  # Check likes table structure
 ### Common Issues
 
 **Issue**: Vote buttons not appearing
+
 - **Check**: Room is in voting phase
 - **Check**: User is room participant
 - **Check**: Card is not in a group (for card votes)
 
 **Issue**: Cannot add votes
+
 - **Check**: User has remaining votes (`votesRemaining > 0`)
 - **Check**: API returns 403 for vote limit exceeded
 - **Solution**: Remove existing votes first
 
 **Issue**: Vote counts not updating
+
 - **Check**: Room data polling is active
 - **Check**: Network connectivity for API calls
 - **Solution**: Refresh room data manually
 
 ### Debug Information
 
-```typescript
-// Check user vote status
-console.log('Current user votes:', {
-  used: participant.votesUsed,
-  remaining: participant.votesRemaining,
-  max: room.maxVotesPerUser
-})
+Key debugging points:
 
-// Check room phase
-console.log('Room phase:', room.currentPhase)
-
-// Check vote button state
-console.log('Vote button state:', {
-  userVotes: card.userVotes,
-  canAddVote: currentUserVotes.remaining > 0,
-  disabled: votingDisabled
-})
-```
+- Check user vote status (used, remaining, max votes)
+- Verify room is in correct phase for voting
+- Inspect vote button state (userVotes, canAddVote, disabled)
+- Monitor API responses for error details

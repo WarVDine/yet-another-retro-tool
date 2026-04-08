@@ -93,8 +93,11 @@ import express from 'express'
 ### Design documentation
 
 - All features must have documentation explaining them at least at a high-level
-- Docuemntation should be understood by humans and AIs
-- Markdown files and mermaid diagrams are great for this!
+- DO NOT include implementation details in the docs. Links to files are okay.
+- Documentation should be markdown files
+- API Specs are required / highly recommended
+- Mermaid diagrams are highly recommended
+- Documentation should be understood by humans and AIs
 - Markdown files should ahdere to [common mark spec](https://spec.commonmark.org/0.31.2/)
 
 ### Accessibility Requirements
