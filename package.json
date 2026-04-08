@@ -43,6 +43,7 @@
     "drizzle-orm": "^0.45.2",
     "eslint": "^8.57.0",
     "kill-port": "^2.0.1",
+    "markdownlint-cli": "^0.48.0",
     "prettier": "^3.2.5",
     "wait-on": "^9.0.4"
   },

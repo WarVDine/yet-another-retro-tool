@@ -26,12 +26,13 @@ npm run dev
 ```
 
 Your app will be running at:
-- **Frontend**: http://localhost:3000
-- **Backend**: http://localhost:5000
+
+- **Frontend**: <http://localhost:3000>
+- **Backend**: <http://localhost:5000>
 
 ## 📁 Project Structure
 
-```
+```text
 yet-another-retro-tool/
 ├── frontend/          # React + Vite + TypeScript
 ├── backend/           # Express.js + TypeScript + Drizzle ORM
@@ -134,6 +135,7 @@ npm run clean          # Clean all build outputs and node_modules
 ## 🏗️ Technology Stack
 
 ### Frontend
+
 - **React 18** with TypeScript
 - **Vite** for fast development and building
 - **React Router** for client-side routing
@@ -142,6 +144,7 @@ npm run clean          # Clean all build outputs and node_modules
 - **Lucide React** for icons
 
 ### Backend
+
 - **Express.js** with TypeScript
 - **Drizzle ORM** for database operations
 - **PostgreSQL** as the database
@@ -150,6 +153,7 @@ npm run clean          # Clean all build outputs and node_modules
 - **CORS** for cross-origin requests
 
 ### Database Schema
+
 - **Rooms**: Retrospective sessions with access codes
 - **Users**: Guest users (no login required)
 - **Columns**: Flexible column system (not hardcoded categories)
@@ -159,6 +163,7 @@ npm run clean          # Clean all build outputs and node_modules
 - **Phases**: Structured retro flow (setup → writing → grouping → voting → discussing)
 
 ### Migration System
+
 - **Drizzle Kit Migrations**: Version-controlled schema changes
 - **Automatic Generation**: `npm run db:generate` creates migrations from schema
 - **Rollback Support**: Can revert to previous schema versions

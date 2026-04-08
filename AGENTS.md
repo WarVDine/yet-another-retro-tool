@@ -2,7 +2,8 @@
 
 ## Project Coding Standards
 
-This document defines the coding standards and conventions that must be followed across the Yet Another Retro Tool project. These rules ensure consistency, maintainability, and a better developer experience.
+This document defines the coding standards and conventions that must be followed across the Yet Another Retro Tool project.
+These rules ensure consistency, maintainability, and a better developer experience.
 
 ## 1. String Formatting Standard
 
@@ -89,6 +90,13 @@ import express from 'express'
 - All API responses should follow `ApiResponse<T>` interface from shared package
 - Use semantic error categories: 'Validation Error', 'Not Found', 'Internal Server Error'
 
+### Design documentation
+
+- All features must have documentation explaining them at least at a high-level
+- Docuemntation should be understood by humans and AIs
+- Markdown files and mermaid diagrams are great for this!
+- Markdown files should ahdere to [common mark spec](https://spec.commonmark.org/0.31.2/)
+
 ### Accessibility Requirements
 
 - All form inputs must have proper labels (no placeholder-only labels)
@@ -111,4 +119,5 @@ These rules should be followed by all contributors. Future enhancements may incl
 
 ## Questions or Clarifications
 
-If you have questions about these rules or need clarification on specific cases, please discuss them during code review or team meetings to ensure consistent interpretation across the project.
+If you have questions about these rules or need clarification on specific cases,
+please discuss them during code review or team meetings to ensure consistent interpretation across the project.
