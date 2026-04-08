@@ -10,6 +10,7 @@ import { cardRouter } from '@/routes/cards'
 import { healthRouter } from '@/routes/health'
 import { roomRouter } from '@/routes/rooms'
 import { userRouter } from '@/routes/users'
+import { cardGroupRouter } from '@/routes/cardGroups'
 
 // Load environment variables
 dotenv.config()
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Routes
 app.use(`${API_PREFIX}/cards`, cardRouter)
+app.use(`${API_PREFIX}/card-groups`, cardGroupRouter)
 app.use(`${API_PREFIX}/health`, healthRouter)
 app.use(`${API_PREFIX}/rooms`, roomRouter)
 app.use(`${API_PREFIX}/users`, userRouter)

@@ -85,6 +85,23 @@ export const validateRoomParticipant = async (
 }
 
 /**
+ * Validate that user is a facilitator in the specified room
+ */
+export const validateFacilitatorRole = async (
+  userId: string,
+  roomId: string
+): Promise<boolean> => {
+  const participation = await db.query.roomParticipants.findFirst({
+    where: and(
+      eq(roomParticipants.userId, userId),
+      eq(roomParticipants.roomId, roomId)
+    )
+  })
+
+  return participation?.role === 'facilitator'
+}
+
+/**
  * Validate that user owns the specified card
  */
 export const validateCardOwnership = async (

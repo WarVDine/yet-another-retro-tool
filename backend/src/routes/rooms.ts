@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { createRoom, joinRoom, getRoomById } from '@/controllers/roomController'
+import { createRoom, joinRoom, getRoomById, updateRoomPhase } from '@/controllers/roomController'
 
 const router = Router()
 
@@ -7,5 +7,6 @@ const router = Router()
 router.post('/', createRoom)
 router.post('/join', joinRoom)
 router.get('/:id', getRoomById)
+router.patch('/:id/phase', updateRoomPhase)
 
 export { router as roomRouter }

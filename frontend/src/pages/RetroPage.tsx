@@ -1,14 +1,18 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, Clock, Settings, Copy, Check, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { DndProvider } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
 
 import { DetailedRoomResponse, CardResponse } from '@yet-another-retro-tool/shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { RetroCard } from '@/components/RetroCard'
+import { DraggableCard } from '@/components/DraggableCard'
 import { AddCardButton } from '@/components/AddCardButton'
+import { CardGroup } from '@/components/CardGroup'
 import { useGuestUser } from '@/contexts/GuestUserContext'
-import { roomApi, cardApi } from '@/utils/api'
+import { roomApi, cardApi, cardGroupApi } from '@/utils/api'
 import { useRoomPolling } from '@/hooks/useRoomPolling'
 
 export function RetroPage() {
@@ -20,6 +24,13 @@ export function RetroPage() {
   const [error, setError] = useState<string | null>(null)
   const [isCopied, setIsCopied] = useState(false)
   const [editingCardId, setEditingCardId] = useState<string | null>(null)
+  const [isUpdatingPhase, setIsUpdatingPhase] = useState(false)
+
+  // Check if current user is a facilitator
+  const isFacilitator = useMemo(() => {
+    if (!room || !guestUser.userId) return false
+    return room.participants.some(p => p.id === guestUser.userId && p.role === 'facilitator')
+  }, [room, guestUser.userId])
 
   const loadRoom = useCallback(async () => {
     if (!id) return
@@ -209,6 +220,100 @@ export function RetroPage() {
     setEditingCardId(null)
   }, [])
 
+  const handlePhaseTransition = useCallback(async (newPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing') => {
+    if (!id || !guestUser.guestId || !isFacilitator) return
+
+    setIsUpdatingPhase(true)
+    try {
+      await roomApi.updateRoomPhase(id, {
+        phase: newPhase,
+        guestId: guestUser.guestId
+      })
+      
+      // Reload room data to get updated phase
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to update room phase:', error)
+      setError('Failed to update room phase. Please try again.')
+    } finally {
+      setIsUpdatingPhase(false)
+    }
+  }, [id, guestUser.guestId, isFacilitator, loadRoom])
+
+  const handleUpdateGroup = useCallback(async (groupId: string, title: string) => {
+    if (!guestUser.guestId) return
+
+    try {
+      await cardGroupApi.updateCardGroup(groupId, {
+        title,
+        guestId: guestUser.guestId
+      })
+      
+      // Reload room data to get updated groups
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to update group:', error)
+      throw error
+    }
+  }, [guestUser.guestId, loadRoom])
+
+  const handleDeleteGroup = useCallback(async (groupId: string) => {
+    if (!guestUser.guestId) return
+
+    try {
+      await cardGroupApi.deleteCardGroup(groupId, guestUser.guestId)
+      
+      // Reload room data to get updated groups
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to delete group:', error)
+      throw error
+    }
+  }, [guestUser.guestId, loadRoom])
+
+  const handleDropCard = useCallback(async (draggedCardId: string, targetCardId: string) => {
+    if (!guestUser.guestId || !isFacilitator || room?.currentPhase !== 'grouping') return
+
+    try {
+      // Find the cards to determine which column they're in
+      const draggedCard = room.columns.flatMap(col => col.cards).find(card => card.id === draggedCardId)
+      const targetCard = room.columns.flatMap(col => col.cards).find(card => card.id === targetCardId)
+      
+      if (!draggedCard || !targetCard) return
+
+      // Find the column of the target card
+      const targetColumn = room.columns.find(col => col.cards.some(card => card.id === targetCardId))
+      if (!targetColumn) return
+
+      // Check if target card is already in a group
+      const existingGroup = targetColumn.cardGroups.find(group => 
+        group.cards.some(card => card.id === targetCardId)
+      )
+
+      if (existingGroup) {
+        // Add dragged card to existing group
+        await cardGroupApi.addCardsToGroup(existingGroup.id, {
+          cardIds: [draggedCardId],
+          guestId: guestUser.guestId
+        })
+      } else {
+        // Create new group with both cards
+        await cardGroupApi.createCardGroup({
+          columnId: targetColumn.id,
+          title: 'New Group',
+          cardIds: [targetCardId, draggedCardId],
+          guestId: guestUser.guestId
+        })
+      }
+
+      // Reload room data
+      await loadRoom()
+    } catch (error) {
+      console.error('Failed to group cards:', error)
+      setError('Failed to group cards. Please try again.')
+    }
+  }, [guestUser.guestId, isFacilitator, room, loadRoom])
+
   const handleCopyJoinCode = useCallback(async () => {
     if (!room?.participantCode) return
     
@@ -260,7 +365,8 @@ export function RetroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -291,6 +397,64 @@ export function RetroPage() {
                 <span>Created {new Date(room.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
+
+            {/* Phase Transition Controls - Only for facilitators */}
+            {isFacilitator && (
+              <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-amber-900 mb-1">
+                      Facilitator Controls
+                    </h3>
+                    <p className="text-xs text-amber-700">
+                      Current phase: <strong>{room.currentPhase}</strong>
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {room.currentPhase === 'setup' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePhaseTransition('writing')}
+                        disabled={isUpdatingPhase}
+                      >
+                        Start Writing Phase
+                      </Button>
+                    )}
+                    {room.currentPhase === 'writing' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePhaseTransition('grouping')}
+                        disabled={isUpdatingPhase}
+                      >
+                        Start Grouping Phase
+                      </Button>
+                    )}
+                    {room.currentPhase === 'grouping' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePhaseTransition('voting')}
+                        disabled={isUpdatingPhase}
+                      >
+                        Start Voting Phase
+                      </Button>
+                    )}
+                    {room.currentPhase === 'voting' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePhaseTransition('discussing')}
+                        disabled={isUpdatingPhase}
+                      >
+                        Start Discussion Phase
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Join Code Section */}
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -419,21 +583,54 @@ export function RetroPage() {
                 {column.description && <CardDescription>{column.description}</CardDescription>}
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Interactive Cards */}
+                {/* Interactive Cards (not in groups) */}
                 <div className="space-y-3">
-                  {column.cards.map((card) => (
-                    <RetroCard
+                  {column.cards
+                    .filter(card => !column.cardGroups.some(group => 
+                      group.cards.some(groupCard => groupCard.id === card.id)
+                    ))
+                    .map((card) => (
+                    <DraggableCard
                       key={card.id}
-                      card={card}
-                      columnColor={column.color}
-                      onUpdate={handleUpdateCard}
-                      onDelete={handleDeleteCard}
-                      onEditStart={handleCardEditStart}
-                      onEditEnd={handleCardEditEnd}
-                      disabled={!guestUser.guestId}
-                    />
+                      id={card.id}
+                      type="card"
+                      isFacilitator={isFacilitator}
+                      isGroupingPhase={room.currentPhase === 'grouping'}
+                      onDropCard={handleDropCard}
+                    >
+                      <RetroCard
+                        card={card}
+                        columnColor={column.color}
+                        onUpdate={handleUpdateCard}
+                        onDelete={handleDeleteCard}
+                        onEditStart={handleCardEditStart}
+                        onEditEnd={handleCardEditEnd}
+                        disabled={!guestUser.guestId || (room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing')}
+                      />
+                    </DraggableCard>
                   ))}
                 </div>
+
+                {/* Card Groups */}
+                {column.cardGroups && column.cardGroups.length > 0 && (
+                  <div className="space-y-3">
+                    {column.cardGroups.map((group) => (
+                      <CardGroup
+                        key={group.id}
+                        group={group}
+                        columnColor={column.color}
+                        isFacilitator={isFacilitator}
+                        isGroupingPhase={room.currentPhase === 'grouping'}
+                        onUpdateGroup={handleUpdateGroup}
+                        onDeleteGroup={handleDeleteGroup}
+                        onUpdateCard={handleUpdateCard}
+                        onDeleteCard={handleDeleteCard}
+                        onCardEditStart={handleCardEditStart}
+                        onCardEditEnd={handleCardEditEnd}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {/* Add Card Button */}
                 <AddCardButton
@@ -444,7 +641,7 @@ export function RetroPage() {
                     console.log('Card created:', newCard.id)
                   }}
                   onCreateCard={handleCreateCard}
-                  disabled={!guestUser.guestId}
+                  disabled={!guestUser.guestId || room.currentPhase === 'grouping' || room.currentPhase === 'voting' || room.currentPhase === 'discussing'}
                 />
               </CardContent>
             </Card>
@@ -452,5 +649,6 @@ export function RetroPage() {
         </div>
       </div>
     </div>
+    </DndProvider>
   )
 }

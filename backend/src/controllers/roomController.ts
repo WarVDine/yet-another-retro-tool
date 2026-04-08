@@ -7,12 +7,13 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
   DetailedRoomResponse,
+  UpdateRoomPhaseRequest,
   RETRO_TEMPLATES,
 } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
-import { rooms, columns, users, roomParticipants, cards } from '@/database/schema'
+import { rooms, columns, users, roomParticipants, cards, cardGroups, cardGroupMemberships } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
-import { validateRoomParticipant } from '@/middleware/auth'
+import { validateFacilitatorRole, validateRoomParticipant } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
 
@@ -244,6 +245,20 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
                 author: true,
               },
             },
+            cardGroups: {
+              orderBy: [cardGroups.sortOrder],
+              with: {
+                cardMemberships: {
+                  with: {
+                    card: {
+                      with: {
+                        author: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
         participants: {
@@ -303,6 +318,27 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
             // Add ownership flag for frontend (only if currentUserId is available)
             ...(currentUserId && { isOwner: currentUserId === card.authorId }),
           })),
+          cardGroups: col.cardGroups.map((group) => ({
+            id: group.id,
+            columnId: group.columnId,
+            title: group.title,
+            description: group.description || null,
+            sortOrder: group.sortOrder,
+            createdAt: group.createdAt.toISOString(),
+            updatedAt: group.updatedAt.toISOString(),
+            cards: group.cardMemberships.map((membership) => ({
+              id: membership.card.id,
+              columnId: membership.card.columnId,
+              authorId: membership.card.authorId,
+              content: membership.card.content,
+              isAnonymous: membership.card.isAnonymous,
+              sortOrder: membership.card.sortOrder,
+              createdAt: membership.card.createdAt.toISOString(),
+              updatedAt: membership.card.updatedAt.toISOString(),
+              // Add ownership flag for frontend (only if currentUserId is available)
+              ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
+            })),
+          })),
         })),
         participants: room.participants.map((p) => ({
           id: p.user.id,
@@ -320,6 +356,88 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
       success: false,
       error: 'Internal Server Error',
       message: 'Failed to load room',
+    })
+  }
+})
+
+export const updateRoomPhase = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
+  const { id } = req.params
+  const { phase, guestId }: UpdateRoomPhaseRequest = req.body
+
+  if (!id || !phase || !guestId) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Room ID, phase, and guest ID are required',
+    })
+    return
+  }
+
+  try {
+    // Resolve guest ID to user ID
+    const user = await db.query.users.findFirst({
+      where: eq(users.guestId, guestId),
+    })
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'User not found',
+      })
+      return
+    }
+
+    // Use auth utility function to validate facilitator role
+    const isFacilitator = await validateFacilitatorRole(user.id, id)
+    if (!isFacilitator) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'Only facilitators can change room phases',
+      })
+      return
+    }
+
+    // Update the room phase
+    const [updatedRoom] = await db
+      .update(rooms)
+      .set({
+        currentPhase: phase,
+        updatedAt: new Date(),
+      })
+      .where(eq(rooms.id, id))
+      .returning()
+
+    if (!updatedRoom) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Room not found',
+      })
+      return
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: updatedRoom.id,
+        name: updatedRoom.name,
+        description: updatedRoom.description || undefined,
+        facilitatorCode: updatedRoom.facilitatorCode,
+        participantCode: updatedRoom.participantCode,
+        currentPhase: updatedRoom.currentPhase,
+        maxVotesPerUser: updatedRoom.maxVotesPerUser,
+        columns: [], // Phase updates don't need to return full room data
+        createdAt: updatedRoom.createdAt.toISOString(),
+      },
+    })
+  } catch (error) {
+    console.error('Error updating room phase:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to update room phase',
     })
   }
 })
