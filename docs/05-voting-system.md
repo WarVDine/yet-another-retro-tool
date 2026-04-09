@@ -270,11 +270,20 @@ buttons when at limit).
 
 ### Vote Display Rules
 
-| Phase | Vote Counts Shown | User Vote Counts | Participant Totals |
-|-------|-------------------|------------------|-------------------|
-| Setup/Writing/Grouping | ❌ Hidden | ❌ Hidden | ❌ Hidden |
-| Voting | ❌ Hidden | ✅ Own votes only | ✅ Votes used/remaining |
-| Discussion | ✅ All totals with rankings | ❌ Hidden (anonymous) | ✅ Final totals |
+| Phase | Vote Counts Shown | User Vote Counts | Participant Totals | Rankings |
+|-------|-------------------|------------------|-------------------|----------|
+| Setup/Writing/Grouping | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
+| Voting | ❌ Hidden | ✅ Own votes only | ✅ Votes used/remaining | ❌ Hidden |
+| Discussion | ✅ All totals | ❌ Hidden (anonymous) | ✅ Final totals | ✅ Unified rankings |
+
+### Unified Ranking System
+
+During the discussion phase, all votable items (ungrouped cards and groups) compete in a single unified ranking system:
+
+- **Single Leaderboard**: Only one item can be ranked #1 across the entire room
+- **Cross-Column Competition**: Cards and groups from different columns compete for the same rank positions
+- **Consistent Highlighting**: Top 3 ranked items receive visual highlighting (🥇🥈🥉) regardless of their type or column
+- **Tie Handling**: Items with the same vote count share the same rank, with consistent tie-breaking by ID for display order
 
 ## Vote Flow Sequence
 
