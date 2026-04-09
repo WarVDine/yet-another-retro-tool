@@ -53,6 +53,14 @@ facilitation platform with the following key features:
 - Discussion-focused UI with prominent vote counts
 - Complete anonymity maintenance (no individual vote information)
 
+### 7. [Export Functionality](07-export-functionality.md)
+
+- Facilitator-only Markdown export during discussion phase
+- Comprehensive retrospective summary with vote rankings
+- Participant list with role indicators
+- Clean, scannable format optimized for sharing
+- Automatic file download with sanitized naming
+
 ## Architecture Overview
 
 ```mermaid
@@ -62,6 +70,7 @@ flowchart TB
         Auth[GuestUserContext]
         Polling[Room Polling]
         DnD[Drag & Drop]
+        Export[Export Functionality]
     end
     
     subgraph Backend [Backend - Express.js + TypeScript]
@@ -69,6 +78,7 @@ flowchart TB
         Controllers[Controllers]
         Middleware[Auth Middleware]
         Utils[Position Utils]
+        Templates[Markdown Templates]
     end
     
     subgraph Database [PostgreSQL + Drizzle ORM]
@@ -105,6 +115,7 @@ flowchart TB
 6. **Voting**: Phase-restricted voting with limits, real-time tracking, and
    user ID anonymization
 7. **Discussion**: Anonymous vote result display with ranking and highlighting
+8. **Export**: Facilitator-only Markdown generation with vote aggregation and file download
 
 ## Technology Stack
 

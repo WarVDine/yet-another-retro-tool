@@ -138,6 +138,61 @@ export const roomApi = {
   updateRoomPhase: async (roomId: string, request: UpdateRoomPhaseRequest): Promise<RoomResponse> => {
     return apiClient.patch<RoomResponse>(`/rooms/${roomId}/phase`, request)
   },
+
+  exportRoom: async (roomId: string): Promise<{ success: boolean; filename?: string }> => {
+    try {
+      const guestId = getStoredGuestId()
+      if (!guestId) {
+        throw new Error('Guest ID not found')
+      }
+
+      const url = `${API_BASE_URL}/rooms/${roomId}/export`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Guest ${guestId}`,
+        },
+      })
+
+      if (!response.ok) {
+        // Try to parse error response
+        try {
+          const errorData: ApiError = await response.json()
+          const error = new Error(errorData.message || 'Export failed')
+          ;(error as any).status = response.status
+          throw error
+        } catch {
+          // If JSON parsing fails, throw generic error
+          throw new Error(`Export failed with status ${response.status}`)
+        }
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition')
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+      const filename = filenameMatch?.[1] || 'retro-export.md'
+
+      // Get the file content as blob
+      const blob = await response.blob()
+
+      // Create download link and trigger download
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      
+      // Clean up
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+
+      return { success: true, filename }
+    } catch (error) {
+      console.error('Export failed:', error)
+      throw error
+    }
+  },
 }
 
 // Card API methods

@@ -26,6 +26,7 @@ import { validateFacilitatorRole, validateRoomParticipant } from '@/middleware/a
 import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
 import { filterRoomResponseByRole, createMinimalRoomResponse, getUserRoleInRoom } from '@/utils/responseFilter'
+import { generateRetroExportMarkdown, generateExportFilename, ExportData } from '@/templates/retroExport'
 
 export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
   const { name, description, template }: CreateRoomRequest = req.body
@@ -520,6 +521,219 @@ export const updateRoomPhase = asyncHandler(async (req: Request, res: CustomResp
       success: false,
       error: 'Internal Server Error',
       message: 'Failed to update room phase',
+    })
+  }
+})
+
+export const exportRoom = asyncHandler(async (req: Request, res: CustomResponse<never>) => {
+  const { id } = req.params
+
+  if (!id) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Room ID is required',
+    })
+    return
+  }
+
+  try {
+    // Load room with all related data using same pattern as getRoomById
+    const room = await db.query.rooms.findFirst({
+      where: eq(rooms.id, id),
+      with: {
+        columns: {
+          orderBy: [columns.sortOrder],
+          with: {
+            cards: {
+              orderBy: [cards.sortOrder],
+              with: {
+                author: true,
+              },
+            },
+            cardGroups: {
+              orderBy: [cardGroups.sortOrder],
+              with: {
+                cardMemberships: {
+                  with: {
+                    card: {
+                      with: {
+                        author: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        participants: {
+          with: {
+            user: true,
+          },
+        },
+      },
+    })
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Room not found',
+      })
+      return
+    }
+
+    if (room.currentPhase !== 'discussing') {
+      res.status(400).json({
+        success: false,
+        error: 'Bad Request',
+        message: 'Room is not in discussion phase',
+      })
+      return
+    }
+
+    // Load vote information for discussion phase display
+    let voteData: {
+      cardVotes: Map<string, { total: number; userVotes: number }>
+      groupVotes: Map<string, { total: number; userVotes: number }>
+    } = {
+      cardVotes: new Map(),
+      groupVotes: new Map(),
+    }
+
+    // Always load vote data for export (to show vote counts regardless of phase)
+    const allVotes = await db.query.likes.findMany({
+      with: {
+        card: {
+          with: {
+            column: true,
+          },
+        },
+        group: {
+          with: {
+            column: true,
+          },
+        },
+      },
+    })
+
+    // Filter votes that belong to this room
+    const roomVotes = allVotes.filter((vote) => {
+      const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
+      return roomIdFromVote === room.id
+    })
+
+    // Build vote counts for cards and groups
+    const cardVoteCounts = new Map<string, number>()
+    const groupVoteCounts = new Map<string, number>()
+
+    roomVotes.forEach((vote) => {
+      if (vote.cardId) {
+        cardVoteCounts.set(vote.cardId, (cardVoteCounts.get(vote.cardId) || 0) + 1)
+      }
+      if (vote.groupId) {
+        groupVoteCounts.set(vote.groupId, (groupVoteCounts.get(vote.groupId) || 0) + 1)
+      }
+    })
+
+    // Store vote data
+    cardVoteCounts.forEach((total, cardId) => {
+      voteData.cardVotes.set(cardId, { total, userVotes: 0 })
+    })
+    groupVoteCounts.forEach((total, groupId) => {
+      voteData.groupVotes.set(groupId, { total, userVotes: 0 })
+    })
+
+    // Build the room response with vote counts (similar to discussion phase)
+    const roomResponse: DetailedRoomResponse = {
+      id: room.id,
+      name: room.name,
+      description: room.description || undefined,
+      facilitatorCode: room.facilitatorCode,
+      participantCode: room.participantCode,
+      currentPhase: room.currentPhase,
+      maxVotesPerUser: room.maxVotesPerUser,
+      isActive: room.isActive,
+      columns: room.columns.map((col) => ({
+        id: col.id,
+        title: col.title,
+        description: col.description || undefined,
+        color: col.color,
+        sortOrder: col.sortOrder,
+        cards: col.cards.map((card) => {
+          const cardVoteInfo = voteData.cardVotes.get(card.id)
+          return {
+            id: card.id,
+            content: card.content,
+            isAnonymous: card.isAnonymous,
+            authorName: card.isAnonymous ? undefined : card.author.displayName,
+            sortOrder: card.sortOrder,
+            createdAt: card.createdAt.toISOString(),
+            columnId: card.columnId,
+            authorId: card.authorId,
+            updatedAt: card.updatedAt.toISOString(),
+            voteCount: cardVoteInfo?.total || 0,
+          }
+        }),
+        cardGroups: col.cardGroups.map((group) => {
+          const groupVoteInfo = voteData.groupVotes.get(group.id)
+          return {
+            id: group.id,
+            columnId: group.columnId,
+            title: group.title,
+            description: group.description || null,
+            sortOrder: group.sortOrder,
+            createdAt: group.createdAt.toISOString(),
+            updatedAt: group.updatedAt.toISOString(),
+            voteCount: groupVoteInfo?.total || 0,
+            cards: group.cardMemberships.map((membership) => ({
+              id: membership.card.id,
+              columnId: membership.card.columnId,
+              authorId: membership.card.authorId,
+              content: membership.card.content,
+              isAnonymous: membership.card.isAnonymous,
+              authorName: membership.card.isAnonymous ? undefined : membership.card.author.displayName,
+              sortOrder: membership.card.sortOrder,
+              createdAt: membership.card.createdAt.toISOString(),
+              updatedAt: membership.card.updatedAt.toISOString(),
+            })),
+          }
+        }),
+      })),
+      participants: room.participants.map((p) => ({
+        id: p.user.id,
+        displayName: p.user.displayName,
+        role: p.role,
+        joinedAt: p.joinedAt.toISOString(),
+      })),
+      createdAt: room.createdAt.toISOString(),
+    }
+
+    // Generate export data
+    const exportDate = new Date().toISOString()
+    const exportData: ExportData = {
+      room: roomResponse,
+      exportDate,
+    }
+
+    // Generate markdown content
+    const markdownContent = generateRetroExportMarkdown(exportData)
+    const filename = generateExportFilename(room.name, exportDate)
+
+    // Set appropriate headers for file download
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Length', Buffer.byteLength(markdownContent, 'utf8'))
+
+    // Send the markdown content
+    res.send(markdownContent)
+  } catch (error) {
+    console.error('Error exporting room:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to export room',
     })
   }
 })
