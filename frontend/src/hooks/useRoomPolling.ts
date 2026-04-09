@@ -5,7 +5,6 @@ import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 
 interface UseRoomPollingOptions {
   roomId: string | null
-  guestId: string | null
   enabled: boolean
   interval?: number // milliseconds, default 5000
   onUpdate?: (room: DetailedRoomResponse) => void
@@ -21,7 +20,6 @@ interface UseRoomPollingReturn {
 
 export function useRoomPolling({
   roomId,
-  guestId,
   enabled,
   interval = 5000,
   onUpdate,
@@ -48,9 +46,8 @@ export function useRoomPolling({
     if (!roomId) return null
 
     try {
-      console.log('fetchRoomData', roomId, guestId)
       setError(null)
-      const roomData = await roomApi.getRoomById(roomId, guestId || undefined)
+      const roomData = await roomApi.getRoomById(roomId)
       console.log('roomData', roomData)
       setLastSyncTime(new Date())
       return roomData
@@ -61,7 +58,7 @@ export function useRoomPolling({
       onError?.(err instanceof Error ? err : new Error(errorMessage))
       return null
     }
-  }, [roomId, guestId, onError])
+  }, [roomId, onError])
 
   const manualRefresh = useCallback(async () => {
     if (!enabled || !roomId) return

@@ -43,7 +43,6 @@ export function CreateRetroPage() {
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         template: formData.template,
-        guestId: guestUser.guestId
       })
 
       // Navigate to the created room

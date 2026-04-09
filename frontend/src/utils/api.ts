@@ -22,6 +22,7 @@ import {
   UnvoteRequest,
   VoteResponse,
 } from '@yet-another-retro-tool/shared'
+import { getStoredGuestId } from './guestUser'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -35,9 +36,13 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`
 
+    // Get guest ID from localStorage for Authorization header
+    const guestId = getStoredGuestId()
+    
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        ...(guestId && { 'Authorization': `Guest ${guestId}` }),
         ...options.headers,
       },
       ...options,
@@ -126,9 +131,8 @@ export const roomApi = {
     return apiClient.post<JoinRoomResponse>('/rooms/join', joinData)
   },
 
-  getRoomById: async (roomId: string, guestId?: string): Promise<DetailedRoomResponse> => {
-    const queryParam = guestId ? `?guestId=${encodeURIComponent(guestId)}` : ''
-    return apiClient.get<DetailedRoomResponse>(`/rooms/${roomId}${queryParam}`)
+  getRoomById: async (roomId: string): Promise<DetailedRoomResponse> => {
+    return apiClient.get<DetailedRoomResponse>(`/rooms/${roomId}`)
   },
 
   updateRoomPhase: async (roomId: string, request: UpdateRoomPhaseRequest): Promise<RoomResponse> => {
@@ -146,8 +150,8 @@ export const cardApi = {
     return apiClient.patch<CardDetailResponse>(`/cards/${cardId}`, request)
   },
 
-  deleteCard: async (cardId: string, guestId: string): Promise<void> => {
-    return apiClient.delete<void>(`/cards/${cardId}`, { guestId })
+  deleteCard: async (cardId: string): Promise<void> => {
+    return apiClient.delete<void>(`/cards/${cardId}`)
   },
 
   moveCard: async (cardId: string, request: MoveCardRequest): Promise<CardDetailResponse> => {
@@ -169,8 +173,8 @@ export const cardGroupApi = {
     return apiClient.patch<CardGroupResponse>(`/card-groups/${groupId}`, request)
   },
 
-  deleteCardGroup: async (groupId: string, guestId: string): Promise<void> => {
-    return apiClient.delete<void>(`/card-groups/${groupId}`, { guestId })
+  deleteCardGroup: async (groupId: string): Promise<void> => {
+    return apiClient.delete<void>(`/card-groups/${groupId}`)
   },
 
   addCardsToGroup: async (groupId: string, request: AddCardsToGroupRequest): Promise<CardGroupResponse> => {
@@ -204,28 +208,28 @@ export const voteApi = {
   /**
    * Convenience method to vote on a card
    */
-  voteOnCard: async (cardId: string, guestId: string): Promise<VoteResponse> => {
-    return apiClient.post<VoteResponse>('/votes', { cardId, guestId })
+  voteOnCard: async (cardId: string): Promise<VoteResponse> => {
+    return apiClient.post<VoteResponse>('/votes', { cardId })
   },
 
   /**
    * Convenience method to vote on a group
    */
-  voteOnGroup: async (groupId: string, guestId: string): Promise<VoteResponse> => {
-    return apiClient.post<VoteResponse>('/votes', { groupId, guestId })
+  voteOnGroup: async (groupId: string): Promise<VoteResponse> => {
+    return apiClient.post<VoteResponse>('/votes', { groupId })
   },
 
   /**
    * Convenience method to remove vote from a card
    */
-  unvoteCard: async (cardId: string, guestId: string): Promise<void> => {
-    return apiClient.delete<void>('/votes', { cardId, guestId })
+  unvoteCard: async (cardId: string): Promise<void> => {
+    return apiClient.delete<void>('/votes', { cardId })
   },
 
   /**
    * Convenience method to remove vote from a group
    */
-  unvoteGroup: async (groupId: string, guestId: string): Promise<void> => {
-    return apiClient.delete<void>('/votes', { groupId, guestId })
+  unvoteGroup: async (groupId: string): Promise<void> => {
+    return apiClient.delete<void>('/votes', { groupId })
   },
 }

@@ -24,7 +24,7 @@ export const resolveGuestUser = async (guestId: string): Promise<string> => {
   }
 
   const user = await db.query.users.findFirst({
-    where: eq(users.guestId, guestId)
+    where: eq(users.guestId, guestId),
   })
 
   if (!user) {
@@ -35,21 +35,35 @@ export const resolveGuestUser = async (guestId: string): Promise<string> => {
 }
 
 /**
- * Middleware to resolve guest user from request body
+ * Extract guest ID from Authorization header
+ * Expected format: "Authorization: Guest <guestId>"
  */
-export const requireGuestUser = async (
-  req: Request,
-  res: CustomResponse,
-  next: NextFunction
-) => {
+export const extractGuestIdFromHeader = (authHeader: string | undefined): string | null => {
+  if (!authHeader) {
+    return null
+  }
+
+  const parts = authHeader.split(' ')
+  if (parts.length !== 2 || parts[0] !== 'Guest') {
+    return null
+  }
+
+  return parts[1] || null
+}
+
+/**
+ * Middleware to resolve guest user from Authorization header
+ */
+export const requireGuestUser = async (req: Request, res: CustomResponse, next: NextFunction) => {
   try {
-    const { guestId } = req.body
+    const authHeader = req.headers.authorization
+    const guestId = extractGuestIdFromHeader(authHeader)
 
     if (!guestId) {
-      res.status(400).json({
+      res.status(401).json({
         success: false,
-        error: 'Validation Error',
-        message: 'Guest ID is required'
+        error: 'Authorization Error',
+        message: 'Valid Authorization header is required (format: "Guest <guestId>")',
       })
       return
     }
@@ -62,7 +76,7 @@ export const requireGuestUser = async (
     res.status(401).json({
       success: false,
       error: 'Authorization Error',
-      message: error instanceof Error ? error.message : 'Invalid user credentials'
+      message: error instanceof Error ? error.message : 'Invalid user credentials',
     })
   }
 }
@@ -70,15 +84,9 @@ export const requireGuestUser = async (
 /**
  * Validate that user is a participant in the specified room
  */
-export const validateRoomParticipant = async (
-  userId: string,
-  roomId: string
-): Promise<boolean> => {
+export const validateRoomParticipant = async (userId: string, roomId: string): Promise<boolean> => {
   const participation = await db.query.roomParticipants.findFirst({
-    where: and(
-      eq(roomParticipants.userId, userId),
-      eq(roomParticipants.roomId, roomId)
-    )
+    where: and(eq(roomParticipants.userId, userId), eq(roomParticipants.roomId, roomId)),
   })
 
   return !!participation
@@ -87,15 +95,9 @@ export const validateRoomParticipant = async (
 /**
  * Validate that user is a facilitator in the specified room
  */
-export const validateFacilitatorRole = async (
-  userId: string,
-  roomId: string
-): Promise<boolean> => {
+export const validateFacilitatorRole = async (userId: string, roomId: string): Promise<boolean> => {
   const participation = await db.query.roomParticipants.findFirst({
-    where: and(
-      eq(roomParticipants.userId, userId),
-      eq(roomParticipants.roomId, roomId)
-    )
+    where: and(eq(roomParticipants.userId, userId), eq(roomParticipants.roomId, roomId)),
   })
 
   return participation?.role === 'facilitator'
@@ -104,12 +106,9 @@ export const validateFacilitatorRole = async (
 /**
  * Validate that user owns the specified card
  */
-export const validateCardOwnership = async (
-  cardId: string,
-  userId: string
-): Promise<boolean> => {
+export const validateCardOwnership = async (cardId: string, userId: string): Promise<boolean> => {
   const card = await db.query.cards.findFirst({
-    where: eq(cards.id, cardId)
+    where: eq(cards.id, cardId),
   })
 
   return card?.authorId === userId
@@ -122,8 +121,8 @@ export const getRoomIdFromColumn = async (columnId: string): Promise<string | nu
   const column = await db.query.columns.findFirst({
     where: eq(columns.id, columnId),
     columns: {
-      roomId: true
-    }
+      roomId: true,
+    },
   })
 
   return column?.roomId || null
@@ -138,11 +137,101 @@ export const getRoomIdFromCard = async (cardId: string): Promise<string | null> 
     with: {
       column: {
         columns: {
-          roomId: true
-        }
-      }
-    }
+          roomId: true,
+        },
+      },
+    },
   })
 
   return card?.column?.roomId || null
+}
+
+/**
+ * Middleware to require room participant access
+ * Expects roomId in req.params.id
+ */
+export const requireRoomParticipant = async (req: Request, res: CustomResponse, next: NextFunction) => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'User authentication required',
+      })
+      return
+    }
+
+    const roomId = req.params.id || req.roomId
+    if (!roomId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Room ID is required',
+      })
+      return
+    }
+
+    const isParticipant = await validateRoomParticipant(req.userId, roomId)
+    if (!isParticipant) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'You must be a room participant to access this resource',
+      })
+      return
+    }
+
+    next()
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to validate room access',
+    })
+  }
+}
+
+/**
+ * Middleware to require facilitator access
+ * Expects roomId in req.params.id
+ */
+export const requireFacilitator = async (req: Request, res: CustomResponse, next: NextFunction) => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'User authentication required',
+      })
+      return
+    }
+
+    const roomId = req.params.id
+    if (!roomId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Room ID is required',
+      })
+      return
+    }
+
+    const isFacilitator = await validateFacilitatorRole(req.userId, roomId)
+    if (!isFacilitator) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'Facilitator access required for this operation',
+      })
+      return
+    }
+
+    next()
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to validate facilitator access',
+    })
+  }
 }

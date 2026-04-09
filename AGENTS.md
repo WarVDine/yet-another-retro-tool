@@ -1,5 +1,10 @@
 # Agent Rules for Yet Another Retro Tool
 
+## Learning about this repo
+
+When starting, always check [the docs folder first!](./docs/)
+It has high-level feature details, and links to specific files for a good start to understand the codebase.
+
 ## Project Coding Standards
 
 This document defines the coding standards and conventions that must be followed across the Yet Another Retro Tool project.

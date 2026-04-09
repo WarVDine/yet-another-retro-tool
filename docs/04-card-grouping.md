@@ -87,13 +87,13 @@ erDiagram
 ```http
 POST /api/card-groups
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
   "columnId": "column-uuid",
   "title": "Communication Issues",
   "description": "Cards related to team communication",
-  "cardIds": ["card-1-uuid", "card-2-uuid"],
-  "guestId": "guest-1704067200000-abc123"
+  "cardIds": ["card-1-uuid", "card-2-uuid"]
 }
 ```
 
@@ -129,10 +129,10 @@ Content-Type: application/json
 ```http
 PATCH /api/card-groups/:id
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "title": "Communication & Collaboration",
-  "guestId": "guest-1704067200000-abc123"
+  "title": "Communication & Collaboration"
 }
 ```
 
@@ -141,10 +141,10 @@ Content-Type: application/json
 ```http
 POST /api/card-groups/:id/cards
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "cardIds": ["card-3-uuid", "card-4-uuid"],
-  "guestId": "guest-1704067200000-abc123"
+  "cardIds": ["card-3-uuid", "card-4-uuid"]
 }
 ```
 
@@ -153,10 +153,10 @@ Content-Type: application/json
 ```http
 DELETE /api/card-groups/:id/cards
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "cardIds": ["card-3-uuid"],
-  "guestId": "guest-1704067200000-abc123"
+  "cardIds": ["card-3-uuid"]
 }
 ```
 
@@ -164,11 +164,7 @@ Content-Type: application/json
 
 ```http
 DELETE /api/card-groups/:id
-Content-Type: application/json
-
-{
-  "guestId": "guest-1704067200000-abc123"
-}
+Authorization: Guest guest-1704067200000-abc123
 ```
 
 ### Move Card Between Columns
@@ -176,11 +172,11 @@ Content-Type: application/json
 ```http
 PATCH /api/cards/:id/move
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
   "targetColumnId": "target-column-uuid",
-  "sortOrder": 2,
-  "guestId": "guest-1704067200000-abc123"
+  "sortOrder": 2
 }
 ```
 
@@ -189,10 +185,10 @@ Content-Type: application/json
 ```http
 PATCH /api/cards/:id/position
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "sortOrder": 1,
-  "guestId": "guest-1704067200000-abc123"
+  "sortOrder": 1
 }
 ```
 
@@ -230,6 +226,13 @@ Content-Type: application/json
 - Groups exist within columns but cards in groups are not in column lists
 - Moving cards updates `columnId` to match their current logical location
 - Position management handles both individual cards and grouped cards
+
+**Response Filtering:**
+
+- **Author ID Removal**: Card `authorId` fields removed from responses for anonymity
+- **Ownership Simplification**: `isOwner` field always set to `false` for grouped cards
+- **Facilitator-Only Operations**: All card group operations require facilitator role
+- **Consistent Privacy**: Maintains anonymity while preserving functionality
 
 ### Position Management
 

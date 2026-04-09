@@ -52,7 +52,6 @@ export function HomePage() {
     try {
       const result = await roomApi.joinRoom({
         code: sessionCode.trim(),
-        guestId: guestUser.guestId
       })
 
       navigate(`/retro/${result.roomId}`)

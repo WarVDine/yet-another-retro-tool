@@ -9,38 +9,24 @@ import {
   CardGroupResponse,
 } from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
-import { cardGroups, cardGroupMemberships, cards, users, columns } from '@/database/schema'
+import { cardGroups, cardGroupMemberships, cards, columns } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
-import { validateRoomParticipant, validateFacilitatorRole } from '@/middleware/auth'
+import { validateFacilitatorRole } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
 
 export const createCardGroup = asyncHandler(async (req: Request, res: CustomResponse<CardGroupResponse>) => {
-  const { columnId, title, cardIds, guestId }: CreateCardGroupRequest = req.body
+  const { columnId, title, cardIds }: CreateCardGroupRequest = req.body
 
-  if (!columnId || !title || !cardIds || cardIds.length === 0 || !guestId) {
+  if (!columnId || !title || !cardIds || cardIds.length === 0) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Column ID, title, card IDs, and guest ID are required',
+      message: 'Column ID, title, and card IDs are required',
     })
     return
   }
 
   try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'User not found',
-      })
-      return
-    }
-
     // Get room ID from column
     const column = await db.query.columns.findFirst({
       where: eq(columns.id, columnId),
@@ -55,8 +41,11 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Authentication guaranteed by requireGuestUser middleware
+    const userId = req.userId!
+
     // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(user.id, column.roomId)
+    const isFacilitator = await validateFacilitatorRole(userId, column.roomId)
     if (!isFacilitator) {
       res.status(403).json({
         success: false,
@@ -84,7 +73,7 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
     }
 
     // Verify all cards belong to the same room
-    const roomIds = [...new Set(existingCards.map(card => card.column.roomId))]
+    const roomIds = [...new Set(existingCards.map((card) => card.column.roomId))]
     if (roomIds.length !== 1 || roomIds[0] !== column.roomId) {
       res.status(400).json({
         success: false,
@@ -114,15 +103,16 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
     }
 
     // Update cards' columnId to match the group's column (exclusive location model)
-    await db.update(cards)
-      .set({ 
+    await db
+      .update(cards)
+      .set({
         columnId: columnId,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(inArray(cards.id, cardIds))
 
     // Add cards to the group
-    const memberships = cardIds.map(cardId => ({
+    const memberships = cardIds.map((cardId) => ({
       cardId,
       groupId: newGroup.id,
     }))
@@ -163,7 +153,7 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
       sortOrder: groupWithCards.sortOrder,
       createdAt: groupWithCards.createdAt.toISOString(),
       updatedAt: groupWithCards.updatedAt.toISOString(),
-      cards: groupWithCards.cardMemberships.map(membership => ({
+      cards: groupWithCards.cardMemberships.map((membership) => ({
         id: membership.card.id,
         columnId: membership.card.columnId,
         authorId: membership.card.authorId,
@@ -172,7 +162,7 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
         sortOrder: membership.card.sortOrder,
         createdAt: membership.card.createdAt.toISOString(),
         updatedAt: membership.card.updatedAt.toISOString(),
-        isOwner: membership.card.authorId === user.id,
+        isOwner: false, // this isn't needed during card grouping
       })),
     }
 
@@ -192,32 +182,18 @@ export const createCardGroup = asyncHandler(async (req: Request, res: CustomResp
 
 export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResponse<CardGroupResponse>) => {
   const { id } = req.params
-  const { title, guestId }: UpdateCardGroupRequest = req.body
+  const { title }: UpdateCardGroupRequest = req.body
 
-  if (!id || !guestId) {
+  if (!id) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Group ID and guest ID are required',
+      message: 'Group ID is required',
     })
     return
   }
 
   try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'User not found',
-      })
-      return
-    }
-
     // Get the group and validate it exists
     const group = await db.query.cardGroups.findFirst({
       where: eq(cardGroups.id, id),
@@ -235,8 +211,11 @@ export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Authentication guaranteed by requireGuestUser middleware
+    const userId = req.userId!
+
     // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(user.id, group.column.roomId)
+    const isFacilitator = await validateFacilitatorRole(userId, group.column.roomId)
     if (!isFacilitator) {
       res.status(403).json({
         success: false,
@@ -255,11 +234,7 @@ export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResp
       updateData.title = title
     }
 
-    const [updatedGroup] = await db
-      .update(cardGroups)
-      .set(updateData)
-      .where(eq(cardGroups.id, id))
-      .returning()
+    const [updatedGroup] = await db.update(cardGroups).set(updateData).where(eq(cardGroups.id, id)).returning()
 
     if (!updatedGroup) {
       res.status(500).json({
@@ -304,7 +279,7 @@ export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResp
       sortOrder: groupWithCards.sortOrder,
       createdAt: groupWithCards.createdAt.toISOString(),
       updatedAt: groupWithCards.updatedAt.toISOString(),
-      cards: groupWithCards.cardMemberships.map(membership => ({
+      cards: groupWithCards.cardMemberships.map((membership) => ({
         id: membership.card.id,
         columnId: membership.card.columnId,
         authorId: membership.card.authorId,
@@ -313,7 +288,7 @@ export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResp
         sortOrder: membership.card.sortOrder,
         createdAt: membership.card.createdAt.toISOString(),
         updatedAt: membership.card.updatedAt.toISOString(),
-        isOwner: membership.card.authorId === user.id,
+        isOwner: false, // this isn't needed during card grouping
       })),
     }
 
@@ -333,32 +308,17 @@ export const updateCardGroup = asyncHandler(async (req: Request, res: CustomResp
 
 export const deleteCardGroup = asyncHandler(async (req: Request, res: CustomResponse<void>) => {
   const { id } = req.params
-  const { guestId } = req.body
 
-  if (!id || !guestId) {
+  if (!id) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Group ID and guest ID are required',
+      message: 'Group ID is required',
     })
     return
   }
 
   try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'User not found',
-      })
-      return
-    }
-
     // Get the group and validate it exists
     const group = await db.query.cardGroups.findFirst({
       where: eq(cardGroups.id, id),
@@ -376,8 +336,11 @@ export const deleteCardGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Authentication guaranteed by requireGuestUser middleware
+    const userId = req.userId!
+
     // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(user.id, group.column.roomId)
+    const isFacilitator = await validateFacilitatorRole(userId, group.column.roomId)
     if (!isFacilitator) {
       res.status(403).json({
         success: false,
@@ -406,32 +369,18 @@ export const deleteCardGroup = asyncHandler(async (req: Request, res: CustomResp
 
 export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResponse<CardGroupResponse>) => {
   const { id } = req.params
-  const { cardIds, guestId }: AddCardsToGroupRequest = req.body
+  const { cardIds }: AddCardsToGroupRequest = req.body
 
-  if (!id || !cardIds || cardIds.length === 0 || !guestId) {
+  if (!id || !cardIds || cardIds.length === 0) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Group ID, card IDs, and guest ID are required',
+      message: 'Group ID and card IDs are required',
     })
     return
   }
 
   try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'User not found',
-      })
-      return
-    }
-
     // Get the group and validate it exists
     const group = await db.query.cardGroups.findFirst({
       where: eq(cardGroups.id, id),
@@ -449,8 +398,11 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Authentication guaranteed by requireGuestUser middleware
+    const userId = req.userId!
+
     // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(user.id, group.column.roomId)
+    const isFacilitator = await validateFacilitatorRole(userId, group.column.roomId)
     if (!isFacilitator) {
       res.status(403).json({
         success: false,
@@ -475,15 +427,16 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
     }
 
     // Update cards' columnId to match the group's column (exclusive location model)
-    await db.update(cards)
-      .set({ 
+    await db
+      .update(cards)
+      .set({
         columnId: group.columnId,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
       .where(inArray(cards.id, cardIds))
 
     // Add cards to the group (ignore if already in group)
-    const memberships = cardIds.map(cardId => ({
+    const memberships = cardIds.map((cardId) => ({
       cardId,
       groupId: id,
     }))
@@ -524,7 +477,7 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
       sortOrder: groupWithCards.sortOrder,
       createdAt: groupWithCards.createdAt.toISOString(),
       updatedAt: groupWithCards.updatedAt.toISOString(),
-      cards: groupWithCards.cardMemberships.map(membership => ({
+      cards: groupWithCards.cardMemberships.map((membership) => ({
         id: membership.card.id,
         columnId: membership.card.columnId,
         authorId: membership.card.authorId,
@@ -533,7 +486,7 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
         sortOrder: membership.card.sortOrder,
         createdAt: membership.card.createdAt.toISOString(),
         updatedAt: membership.card.updatedAt.toISOString(),
-        isOwner: membership.card.authorId === user.id,
+        isOwner: false, // Always false for card group operations
       })),
     }
 
@@ -551,145 +504,131 @@ export const addCardsToGroup = asyncHandler(async (req: Request, res: CustomResp
   }
 })
 
-export const removeCardsFromGroup = asyncHandler(async (req: Request, res: CustomResponse<CardGroupResponse | void>) => {
-  const { id } = req.params
-  const { cardIds, guestId }: RemoveCardsFromGroupRequest = req.body
+export const removeCardsFromGroup = asyncHandler(
+  async (req: Request, res: CustomResponse<CardGroupResponse | void>) => {
+    const { id } = req.params
+    const { cardIds }: RemoveCardsFromGroupRequest = req.body
 
-  if (!id || !cardIds || cardIds.length === 0 || !guestId) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Group ID, card IDs, and guest ID are required',
-    })
-    return
-  }
-
-  try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
+    if (!id || !cardIds || cardIds.length === 0) {
+      res.status(400).json({
         success: false,
-        error: 'Not Found',
-        message: 'User not found',
+        error: 'Validation Error',
+        message: 'Group ID and card IDs are required',
       })
       return
     }
 
-    // Get the group and validate it exists
-    const group = await db.query.cardGroups.findFirst({
-      where: eq(cardGroups.id, id),
-      with: {
-        column: true,
-      },
-    })
-
-    if (!group) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'Card group not found',
+    try {
+      // Get the group and validate it exists
+      const group = await db.query.cardGroups.findFirst({
+        where: eq(cardGroups.id, id),
+        with: {
+          column: true,
+        },
       })
-      return
-    }
 
-    // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(user.id, group.column.roomId)
-    if (!isFacilitator) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'Only facilitators can modify card groups',
+      if (!group) {
+        res.status(404).json({
+          success: false,
+          error: 'Not Found',
+          message: 'Card group not found',
+        })
+        return
+      }
+
+      // Authentication guaranteed by requireGuestUser middleware
+      const userId = req.userId!
+
+      // Validate user is a facilitator of the room
+      const isFacilitator = await validateFacilitatorRole(userId, group.column.roomId)
+      if (!isFacilitator) {
+        res.status(403).json({
+          success: false,
+          error: 'Authorization Error',
+          message: 'Only facilitators can modify card groups',
+        })
+        return
+      }
+
+      // Remove cards from the group
+      await db
+        .delete(cardGroupMemberships)
+        .where(and(eq(cardGroupMemberships.groupId, id), inArray(cardGroupMemberships.cardId, cardIds)))
+
+      // Check if group still has cards
+      const remainingMemberships = await db.query.cardGroupMemberships.findMany({
+        where: eq(cardGroupMemberships.groupId, id),
       })
-      return
-    }
 
-    // Remove cards from the group
-    await db
-      .delete(cardGroupMemberships)
-      .where(
-        and(
-          eq(cardGroupMemberships.groupId, id),
-          inArray(cardGroupMemberships.cardId, cardIds)
-        )
-      )
+      // If no cards left, delete the group
+      if (remainingMemberships.length === 0) {
+        await db.delete(cardGroups).where(eq(cardGroups.id, id))
 
-    // Check if group still has cards
-    const remainingMemberships = await db.query.cardGroupMemberships.findMany({
-      where: eq(cardGroupMemberships.groupId, id),
-    })
+        res.json({
+          success: true,
+          message: 'Card group deleted (no cards remaining)',
+        })
+        return
+      }
 
-    // If no cards left, delete the group
-    if (remainingMemberships.length === 0) {
-      await db.delete(cardGroups).where(eq(cardGroups.id, id))
-      
-      res.json({
-        success: true,
-        message: 'Card group deleted (no cards remaining)',
-      })
-      return
-    }
-
-    // Fetch the updated group with remaining cards
-    const groupWithCards = await db.query.cardGroups.findFirst({
-      where: eq(cardGroups.id, id),
-      with: {
-        cardMemberships: {
-          with: {
-            card: {
-              with: {
-                author: true,
+      // Fetch the updated group with remaining cards
+      const groupWithCards = await db.query.cardGroups.findFirst({
+        where: eq(cardGroups.id, id),
+        with: {
+          cardMemberships: {
+            with: {
+              card: {
+                with: {
+                  author: true,
+                },
               },
             },
           },
         },
-      },
-    })
+      })
 
-    if (!groupWithCards) {
+      if (!groupWithCards) {
+        res.status(500).json({
+          success: false,
+          error: 'Internal Server Error',
+          message: 'Failed to fetch updated group',
+        })
+        return
+      }
+
+      // Format response
+      const response: CardGroupResponse = {
+        id: groupWithCards.id,
+        columnId: groupWithCards.columnId,
+        title: groupWithCards.title,
+        description: groupWithCards.description,
+        sortOrder: groupWithCards.sortOrder,
+        createdAt: groupWithCards.createdAt.toISOString(),
+        updatedAt: groupWithCards.updatedAt.toISOString(),
+        cards: groupWithCards.cardMemberships.map((membership) => ({
+          id: membership.card.id,
+          columnId: membership.card.columnId,
+          authorId: membership.card.authorId,
+          content: membership.card.content,
+          isAnonymous: membership.card.isAnonymous,
+          sortOrder: membership.card.sortOrder,
+          createdAt: membership.card.createdAt.toISOString(),
+          updatedAt: membership.card.updatedAt.toISOString(),
+          isOwner: false, // Always false for card group operations
+        })),
+      }
+
+      res.json({
+        success: true,
+        data: response,
+      })
+    } catch (error) {
+      console.error('Error removing cards from group:', error)
       res.status(500).json({
         success: false,
         error: 'Internal Server Error',
-        message: 'Failed to fetch updated group',
+        message: 'Failed to remove cards from group',
       })
-      return
     }
-
-    // Format response
-    const response: CardGroupResponse = {
-      id: groupWithCards.id,
-      columnId: groupWithCards.columnId,
-      title: groupWithCards.title,
-      description: groupWithCards.description,
-      sortOrder: groupWithCards.sortOrder,
-      createdAt: groupWithCards.createdAt.toISOString(),
-      updatedAt: groupWithCards.updatedAt.toISOString(),
-      cards: groupWithCards.cardMemberships.map(membership => ({
-        id: membership.card.id,
-        columnId: membership.card.columnId,
-        authorId: membership.card.authorId,
-        content: membership.card.content,
-        isAnonymous: membership.card.isAnonymous,
-        sortOrder: membership.card.sortOrder,
-        createdAt: membership.card.createdAt.toISOString(),
-        updatedAt: membership.card.updatedAt.toISOString(),
-        isOwner: membership.card.authorId === user.id,
-      })),
-    }
-
-    res.json({
-      success: true,
-      data: response,
-    })
-  } catch (error) {
-    console.error('Error removing cards from group:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to remove cards from group',
-    })
   }
-})
+)
