@@ -98,7 +98,15 @@ erDiagram
 - Shows "0 votes" for items with no votes
 - Maintains complete anonymity (no individual vote information)
 
-**Visual Ranking System**
+**Unified Ranking System**
+
+The discussion phase uses a unified ranking system where all votable items (ungrouped cards and groups) compete in a single leaderboard:
+
+- **Cross-Type Competition**: Cards and groups compete for the same rank positions
+- **Room-Wide Rankings**: Only one item can be ranked #1 across the entire room
+- **Cross-Column Rankings**: Items from different columns compete against each other
+
+**Visual Highlighting**
 
 - **🥇 First Place**: Gold highlighting with yellow background and border
 - **🥈 Second Place**: Silver highlighting with gray background and border
@@ -106,10 +114,10 @@ erDiagram
 
 **Tie Handling**
 
-- Multiple items can share the same rank
+- Multiple items can share the same rank (both cards and groups)
 - If 4 items tie for 1st place → all 4 highlighted as 1st, no other highlights
 - If 1 item is 1st and 3 items tie for 2nd → 1st place + all 3 tied for 2nd highlighted
-- Consistent ranking logic across all scenarios
+- Consistent ranking logic across all scenarios and item types
 
 ### Discussion Phase Header
 
@@ -175,18 +183,29 @@ vote information to maintain anonymity.
 
 ## Frontend Implementation
 
-### Vote Ranking Logic
+### Unified Vote Ranking Logic
 
-The frontend calculates vote rankings client-side by sorting items by vote count, grouping by vote count to handle
-ties, assigning ranks, and determining which items should be highlighted (top 3). This approach avoids additional
-API calls and provides real-time ranking updates.
+The frontend calculates unified vote rankings client-side using the following approach:
 
-**Implementation**: See [`frontend/src/pages/RetroPage.tsx`](../frontend/src/pages/RetroPage.tsx)
+1. **Collect All Votable Items**: Gathers all ungrouped cards and groups from across all columns
+2. **Unified Sorting**: Sorts all items together by vote count (descending), then by ID for consistent tie-breaking
+3. **Single Ranking System**: Assigns ranks where only one item can hold each rank position
+4. **Cross-Type Competition**: Cards and groups compete against each other for the same rank positions
+5. **Highlighting Assignment**: Top 3 ranked items receive visual highlighting regardless of type or column
+
+This unified approach ensures that rankings are meaningful across the entire room rather than being siloed by column or item type.
+
+**Implementation**: See [`frontend/src/pages/RetroPage.tsx`](../frontend/src/pages/RetroPage.tsx) - `unifiedRankings` calculation
 
 ### Component Integration
 
-The RetroPage component calculates rankings when in discussion phase and passes ranking information to RetroCard
-and CardGroup components. Enhanced vote display shows prominent vote counts with ranking badges for highlighted items.
+The RetroPage component calculates unified rankings when in discussion phase and passes the same
+ranking information to both RetroCard and CardGroup components. This ensures consistent ranking
+display across all item types:
+
+- **Unified Data Source**: Both cards and groups receive ranking info from the same `unifiedRankings` Map
+- **Consistent Display**: Same ranking badge styling and highlighting logic for all items
+- **Cross-Type Rankings**: A card and a group cannot both be ranked #1 simultaneously
 
 **Components**:
 
@@ -328,8 +347,9 @@ and multiple users see identical anonymous data.
 
 - **Check**: Room is in `discussing` phase
 - **Check**: Vote data is present in room response
-- **Check**: Ranking calculation logic handles ties
-- **Solution**: Verify `calculateVoteRankings` function
+- **Check**: Unified ranking calculation logic handles ties correctly
+- **Check**: Both cards and groups are included in unified ranking calculation
+- **Solution**: Verify `calculateVoteRankings` function with unified item list
 
 **Issue**: Vote counts showing as 0 for all items
 
@@ -348,9 +368,10 @@ and multiple users see identical anonymous data.
 **Issue**: Highlighting not working
 
 - **Check**: CSS classes applied correctly
-- **Check**: Ranking info passed to components
-- **Check**: `isHighlighted` flag set properly
-- **Solution**: Verify ranking logic and component styling
+- **Check**: Unified ranking info passed to both card and group components
+- **Check**: `isHighlighted` flag set properly in unified ranking calculation
+- **Check**: Only one item can be highlighted as #1 across the entire room
+- **Solution**: Verify unified ranking logic and component styling
 
 ### Debug Information
 

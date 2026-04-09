@@ -91,6 +91,7 @@ function generateColumnsContent(columns: DetailedColumnResponse[]): string[] {
 
     if (columnItems.length === 0) {
       lines.push('No cards')
+      lines.push('')
     } else {
       // Sort by vote count descending, then by ID for consistent tie-breaking
       const rankedItems = columnItems.sort((a, b) => {

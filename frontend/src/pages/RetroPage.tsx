@@ -119,15 +119,14 @@ export function RetroPage() {
     return room.participants.some((p) => p.id === guestUser.userId && p.role === 'facilitator')
   }, [room, guestUser.userId])
 
-  // Calculate vote rankings for discussion phase
-  const { cardRankings, groupRankings } = useMemo(() => {
+  // Calculate unified vote rankings for discussion phase
+  const { unifiedRankings } = useMemo(() => {
     if (!room || room.currentPhase !== 'discussing') {
-      return { cardRankings: new Map(), groupRankings: new Map() }
+      return { unifiedRankings: new Map() }
     }
 
-    // Collect all cards (not in groups) and groups
-    const allCards: VotableItem[] = []
-    const allGroups: VotableItem[] = []
+    // Collect ALL votable items (ungrouped cards + groups) in one unified list
+    const allVotableItems: VotableItem[] = []
 
     room.columns.forEach(column => {
       // Add ungrouped cards
@@ -136,18 +135,16 @@ export function RetroPage() {
           group.cards.some(groupCard => groupCard.id === card.id)
         )
       )
-      allCards.push(...ungroupedCards.map(card => ({ id: card.id, voteCount: card.voteCount })))
+      allVotableItems.push(...ungroupedCards.map(card => ({ id: card.id, voteCount: card.voteCount })))
 
       // Add groups
-      allGroups.push(...column.cardGroups.map(group => ({ id: group.id, voteCount: group.voteCount })))
+      allVotableItems.push(...column.cardGroups.map(group => ({ id: group.id, voteCount: group.voteCount })))
     })
 
-    const cardRankingsList = calculateVoteRankings(allCards)
-    const groupRankingsList = calculateVoteRankings(allGroups)
+    const unifiedRankingsList = calculateVoteRankings(allVotableItems)
 
     return {
-      cardRankings: new Map(cardRankingsList.map(r => [r.id, r])),
-      groupRankings: new Map(groupRankingsList.map(r => [r.id, r]))
+      unifiedRankings: new Map(unifiedRankingsList.map(r => [r.id, r]))
     }
   }, [room])
 
@@ -1113,7 +1110,7 @@ export function RetroPage() {
                               isInGroup={false}
                               votingDisabled={votingDisabled}
                               canAddVote={canAddVote}
-                              rankingInfo={cardRankings.get(card.id)}
+                              rankingInfo={unifiedRankings.get(card.id)}
                             />
                           </DraggableCard>
                         ))}
@@ -1147,7 +1144,7 @@ export function RetroPage() {
                               onUnvote={handleUnvote}
                               votingDisabled={votingDisabled}
                               canAddVote={canAddVote}
-                              rankingInfo={groupRankings.get(group.id)}
+                              rankingInfo={unifiedRankings.get(group.id)}
                             />
                           </DroppableGroup>
                         ))}
