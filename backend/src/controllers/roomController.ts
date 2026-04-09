@@ -390,11 +390,14 @@ export const validateRoomCode = asyncHandler(async (req: Request, res: CustomRes
     return
   }
 
+  // Normalize code to uppercase for case-insensitive lookup
+  const normalizedCode = code.toUpperCase()
+
   try {
     // Check if room exists with this participant code
     const room = await db.query.rooms.findFirst({
       where: and(
-        eq(rooms.participantCode, code),
+        eq(rooms.participantCode, normalizedCode),
         eq(rooms.isActive, true)
       ),
       columns: {
@@ -444,10 +447,13 @@ export const getRoomByCode = asyncHandler(async (req: Request, res: CustomRespon
     return
   }
 
+  // Normalize code to uppercase for case-insensitive lookup
+  const normalizedCode = code.toUpperCase()
+
   try {
     // Find room by participant code (not facilitator code for security)
     let roomForVerification = await db.query.rooms.findFirst({
-      where: eq(rooms.participantCode, code),
+      where: eq(rooms.participantCode, normalizedCode),
     })
 
     if (!roomForVerification || !roomForVerification.isActive) {
