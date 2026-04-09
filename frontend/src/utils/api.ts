@@ -135,6 +135,10 @@ export const roomApi = {
     return apiClient.get<DetailedRoomResponse>(`/rooms/${roomId}`)
   },
 
+  getRoomByCode: async (code: string): Promise<DetailedRoomResponse> => {
+    return apiClient.get<DetailedRoomResponse>(`/rooms/by-code/${code}`)
+  },
+
   updateRoomPhase: async (roomId: string, request: UpdateRoomPhaseRequest): Promise<RoomResponse> => {
     return apiClient.patch<RoomResponse>(`/rooms/${roomId}/phase`, request)
   },

@@ -103,7 +103,7 @@ const calculateVoteRankings = (items: VotableItem[]): RankingInfo[] => {
 }
 
 export function RetroPage() {
-  const { id } = useParams<{ id: string }>()
+  const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
   const { guestUser } = useGuestUser()
   const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
@@ -149,22 +149,18 @@ export function RetroPage() {
   }, [room])
 
   const loadRoom = useCallback(async () => {
-    if (!id) return
+    if (!code) return
 
     try {
       setIsLoading(true)
-      // Pass guestId to get ownership flags for cards
-      const roomData = await roomApi.getRoomById(id)
+      // Use new code-based API endpoint with auto-join functionality
+      const roomData = await roomApi.getRoomByCode(code)
       setRoom(roomData)
     } catch (error) {
-      // Check if it's a 403 (not a participant) or 404 (room not found)
+      // Check if it's a 404 (room not found) or other errors
       const errorStatus = (error as any)?.status
 
-      if (errorStatus === 403) {
-        // User is not a participant - redirect to homepage with message
-        navigate('/?error=not-participant', { replace: true })
-        return
-      } else if (errorStatus === 404) {
+      if (errorStatus === 404) {
         // Room not found - redirect to homepage with message
         navigate('/?error=room-not-found', { replace: true })
         return
@@ -175,7 +171,7 @@ export function RetroPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [id, guestUser.guestId])
+  }, [code, navigate])
 
   useEffect(() => {
     loadRoom()
@@ -236,7 +232,7 @@ export function RetroPage() {
     error: pollingError,
     manualRefresh,
   } = useRoomPolling({
-    roomId: id || null,
+    roomCode: code || null,
     enabled: !!room && !isLoading, // Only start polling after initial load
     interval: 5000, // 5 seconds
     onUpdate: handlePollingUpdate,
@@ -343,11 +339,11 @@ export function RetroPage() {
 
   const handlePhaseTransition = useCallback(
     async (newPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing') => {
-      if (!id || !guestUser.guestId || !isFacilitator) return
+      if (!room?.id || !guestUser.guestId || !isFacilitator) return
 
       setIsUpdatingPhase(true)
       try {
-        await roomApi.updateRoomPhase(id, {
+        await roomApi.updateRoomPhase(room.id, {
           phase: newPhase,
         })
 
@@ -360,15 +356,15 @@ export function RetroPage() {
         setIsUpdatingPhase(false)
       }
     },
-    [id, guestUser.guestId, isFacilitator, loadRoom]
+    [room?.id, guestUser.guestId, isFacilitator, loadRoom]
   )
 
   const handleExportRetro = useCallback(async () => {
-    if (!id || !isFacilitator) return
+    if (!room?.id || !isFacilitator) return
 
     setIsUpdatingPhase(true) // Reuse the same loading state
     try {
-      const result = await roomApi.exportRoom(id)
+      const result = await roomApi.exportRoom(room.id)
       if (result.success) {
         // Show success message briefly
         setError(null)
@@ -381,7 +377,7 @@ export function RetroPage() {
     } finally {
       setIsUpdatingPhase(false)
     }
-  }, [id, isFacilitator])
+  }, [room?.id, isFacilitator])
 
   const handleUpdateGroup = useCallback(
     async (groupId: string, title: string) => {
@@ -615,18 +611,20 @@ export function RetroPage() {
     [guestUser.guestId, isFacilitator, room, loadRoom]
   )
 
-  const handleCopyJoinCode = useCallback(async () => {
+  const handleCopyJoinLink = useCallback(async () => {
     if (!room?.participantCode) return
 
     try {
-      await navigator.clipboard.writeText(room.participantCode)
+      // Generate full URL instead of just the code
+      const joinUrl = `${window.location.origin}/retro/${room.participantCode}`
+      await navigator.clipboard.writeText(joinUrl)
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000) // Reset after 2 seconds
     } catch (error) {
-      console.error('Failed to copy join code:', error)
+      console.error('Failed to copy join link:', error)
       // Fallback for browsers that don't support clipboard API
       const textArea = document.createElement('textarea')
-      textArea.value = room.participantCode
+      textArea.value = `${window.location.origin}/retro/${room.participantCode}`
       document.body.appendChild(textArea)
       textArea.select()
       document.execCommand('copy')
@@ -892,26 +890,26 @@ export function RetroPage() {
                 </div>
               )}
 
-              {/* Join Code Section */}
+              {/* Join Link Section */}
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-medium text-blue-900 mb-1">Invite Others to Join</h3>
-                    <p className="text-xs text-blue-700">Share this code for others to join the retrospective</p>
+                    <p className="text-xs text-blue-700">Share this link for others to join the retrospective</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <div className="text-lg font-mono font-bold text-blue-900 tracking-wider">
                         {room.participantCode}
                       </div>
-                      <div className="text-xs text-blue-600">Join Code</div>
+                      <div className="text-xs text-blue-600">Join Link</div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleCopyJoinCode}
+                      onClick={handleCopyJoinLink}
                       className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
-                      title={isCopied ? 'Copied!' : 'Copy join code'}
+                      title={isCopied ? 'Copied!' : 'Copy join link'}
                     >
                       {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </Button>

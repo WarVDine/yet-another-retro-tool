@@ -17,7 +17,7 @@ function AppContent() {
       <Routes>
         <Route path='/' element={<HomePage />} />
         <Route path='/create' element={<CreateRetroPage />} />
-        <Route path='/retro/:id' element={<RetroPage />} />
+        <Route path='/retro/:code' element={<RetroPage />} />
       </Routes>
       
       {/* Single modal that handles both create and edit modes - only for editing existing users */}

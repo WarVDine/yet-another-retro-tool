@@ -45,8 +45,8 @@ export function CreateRetroPage() {
         template: formData.template,
       })
 
-      // Navigate to the created room
-      navigate(`/retro/${room.id}`)
+      // Navigate to the created room using participant code
+      navigate(`/retro/${room.participantCode}`)
     } catch (error) {
       console.error('Failed to create room:', error)
       setError(error instanceof Error ? error.message : 'Failed to create room. Please try again.')
