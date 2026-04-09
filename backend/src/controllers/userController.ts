@@ -1,9 +1,14 @@
 import { Request } from 'express'
-import { eq } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 
-import { CreateGuestUserRequest, GuestUserResponse, UpdateGuestUserRequest } from '@yet-another-retro-tool/shared'
+import { 
+  CreateGuestUserRequest, 
+  GuestUserResponse, 
+  UpdateGuestUserRequest,
+  FacilitatedRetrosResponse 
+} from '@yet-another-retro-tool/shared'
 import { db } from '@/database/connection'
-import { users } from '@/database/schema'
+import { users, rooms, roomParticipants, cards } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
 import { CustomResponse } from '@/types/index'
 
@@ -186,6 +191,110 @@ export const updateGuestUser = asyncHandler(
         success: false,
         error: 'Internal Server Error',
         message: 'Failed to update guest user'
+      })
+    }
+  }
+)
+
+export const getFacilitatedRetros = asyncHandler(
+  async (req: Request, res: CustomResponse<FacilitatedRetrosResponse>) => {
+    const { guestId } = req.params
+    const { limit } = req.query
+
+    if (!guestId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Guest ID is required'
+      })
+      return
+    }
+
+    // Ownership validation - user can only access their own facilitated retros
+    const authenticatedGuestId = req.guestId // From requireGuestUser middleware
+    if (guestId !== authenticatedGuestId) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'You can only access your own facilitated retros'
+      })
+      return
+    }
+
+    try {
+      // First find the user by guestId
+      const user = await db.query.users.findFirst({
+        where: eq(users.guestId, guestId)
+      })
+
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          error: 'Not Found',
+          message: 'Guest user not found'
+        })
+        return
+      }
+
+      // Query room participations where user is facilitator, then get rooms
+      const facilitatorParticipations = await db.query.roomParticipants.findMany({
+        where: and(
+          eq(roomParticipants.userId, user.id),
+          eq(roomParticipants.role, 'facilitator')
+        ),
+        with: {
+          room: {
+            with: {
+              participants: true,
+              columns: {
+                with: {
+                  cards: true
+                }
+              }
+            }
+          }
+        }
+      })
+
+      // Extract rooms and sort by updatedAt
+      const facilitatedRooms = facilitatorParticipations
+        .map(participation => participation.room)
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, limit ? parseInt(limit as string) : undefined)
+
+      // Transform to include counts and format data
+      const retros = facilitatedRooms.map(room => {
+        const participantCount = room.participants.length
+        const cardCount = room.columns.reduce((total, column) => total + column.cards.length, 0)
+
+        return {
+          id: room.id,
+          name: room.name,
+          currentPhase: room.currentPhase,
+          isActive: room.isActive,
+          createdAt: room.createdAt.toISOString(),
+          updatedAt: room.updatedAt.toISOString(),
+          participantCount,
+          cardCount,
+          facilitatorCode: room.facilitatorCode,
+          participantCode: room.participantCode
+        }
+      })
+
+      res.json({
+        success: true,
+        data: {
+          retros,
+          totalCount: retros.length
+        },
+        message: 'Facilitated retros retrieved successfully'
+      })
+    } catch (error) {
+      console.error('Error retrieving facilitated retros:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Internal Server Error',
+        message: 'Failed to retrieve facilitated retros'
       })
     }
   }

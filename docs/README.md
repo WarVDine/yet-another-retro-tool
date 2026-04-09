@@ -61,6 +61,14 @@ facilitation platform with the following key features:
 - Clean, scannable format optimized for sharing
 - Automatic file download with sanitized naming
 
+### 8. [Facilitated Retros List](08-facilitated-retros-list.md)
+
+- Personal dashboard showing all facilitated retrospectives
+- Home page preview with 3 most recent retros
+- Dedicated page for complete retros list with navigation
+- Detailed retro metadata (phase, dates, participant/card counts)
+- Direct access to retros via participant codes
+
 ## Architecture Overview
 
 ```mermaid

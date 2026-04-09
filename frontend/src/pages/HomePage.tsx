@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Users, Loader2 } from 'lucide-react'
+import { Plus, Users, Loader2, ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useGuestUser } from '@/contexts/GuestUserContext'
-import { roomApi } from '@/utils/api'
+import { roomApi, guestUserApi } from '@/utils/api'
+import { RetroList } from '@/components/RetroList'
+import { FacilitatedRetroItem } from '@yet-another-retro-tool/shared'
 
 // Utility function to extract room code from URL or return the input as-is
 // All codes are normalized to uppercase for case-insensitive joining
@@ -56,6 +58,11 @@ export function HomePage() {
   const [isJoining, setIsJoining] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
   const [redirectMessage, setRedirectMessage] = useState<string | null>(null)
+  
+  // Recent retros state
+  const [recentRetros, setRecentRetros] = useState<FacilitatedRetroItem[]>([])
+  const [isLoadingRetros, setIsLoadingRetros] = useState(false)
+  const [retrosError, setRetrosError] = useState<string | null>(null)
 
   // Handle redirect messages from room access attempts
   useEffect(() => {
@@ -71,6 +78,45 @@ export function HomePage() {
       setSearchParams({})
     }
   }, [searchParams, setSearchParams])
+
+  // Load recent facilitated retros
+  useEffect(() => {
+    const loadRecentRetros = async () => {
+      if (!guestUser.guestId) return
+
+      setIsLoadingRetros(true)
+      setRetrosError(null)
+
+      try {
+        const response = await guestUserApi.getFacilitatedRetros(guestUser.guestId, 3)
+        setRecentRetros(response.retros)
+      } catch (error) {
+        console.error('Failed to load recent retros:', error)
+        setRetrosError('Failed to load your recent retros.')
+      } finally {
+        setIsLoadingRetros(false)
+      }
+    }
+
+    loadRecentRetros()
+  }, [guestUser.guestId])
+
+  const handleRetryLoadRetros = async () => {
+    if (!guestUser.guestId) return
+
+    setIsLoadingRetros(true)
+    setRetrosError(null)
+
+    try {
+      const response = await guestUserApi.getFacilitatedRetros(guestUser.guestId, 3)
+      setRecentRetros(response.retros)
+    } catch (error) {
+      console.error('Failed to load recent retros:', error)
+      setRetrosError('Failed to load your recent retros.')
+    } finally {
+      setIsLoadingRetros(false)
+    }
+  }
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -226,6 +272,31 @@ export function HomePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent Retros Section */}
+        {guestUser.guestId && (
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Your Recent Retros</h2>
+              {recentRetros.length > 0 && (
+                <Button variant="ghost" asChild className="text-blue-600 hover:text-blue-700">
+                  <Link to="/my-retros" className="flex items-center gap-1">
+                    View All
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+            
+            <RetroList
+              retros={recentRetros}
+              isLoading={isLoadingRetros}
+              error={retrosError}
+              emptyMessage="You haven't facilitated any retros yet. Create your first retro to get started!"
+              onRetry={handleRetryLoadRetros}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

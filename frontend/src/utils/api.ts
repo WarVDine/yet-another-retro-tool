@@ -20,6 +20,7 @@ import {
   VoteRequest,
   UnvoteRequest,
   VoteResponse,
+  FacilitatedRetrosResponse,
 } from '@yet-another-retro-tool/shared'
 import { getStoredGuestId } from './guestUser'
 
@@ -117,6 +118,11 @@ export const guestUserApi = {
 
   updateGuestUser: async (guestId: string, displayName: string): Promise<GuestUserResponse> => {
     return apiClient.put<GuestUserResponse>(`/users/guest/${guestId}`, { displayName })
+  },
+
+  getFacilitatedRetros: async (guestId: string, limit?: number): Promise<FacilitatedRetrosResponse> => {
+    const params = limit ? `?limit=${limit}` : ''
+    return apiClient.get<FacilitatedRetrosResponse>(`/users/guest/${guestId}/facilitated-retros${params}`)
   },
 }
 
