@@ -584,6 +584,15 @@ export const exportRoom = asyncHandler(async (req: Request, res: CustomResponse<
       return
     }
 
+    if (room.currentPhase !== 'discussing') {
+      res.status(400).json({
+        success: false,
+        error: 'Bad Request',
+        message: 'Room is not in discussion phase',
+      })
+      return
+    }
+
     // Load vote information for discussion phase display
     let voteData: {
       cardVotes: Map<string, { total: number; userVotes: number }>
