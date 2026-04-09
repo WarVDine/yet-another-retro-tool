@@ -100,7 +100,8 @@ erDiagram
 
 **Unified Ranking System**
 
-The discussion phase uses a unified ranking system where all votable items (ungrouped cards and groups) compete in a single leaderboard:
+The discussion phase uses a unified ranking system where all votable items (ungrouped cards and
+groups) compete in a single leaderboard:
 
 - **Cross-Type Competition**: Cards and groups compete for the same rank positions
 - **Room-Wide Rankings**: Only one item can be ranked #1 across the entire room
@@ -193,7 +194,8 @@ The frontend calculates unified vote rankings client-side using the following ap
 4. **Cross-Type Competition**: Cards and groups compete against each other for the same rank positions
 5. **Highlighting Assignment**: Top 3 ranked items receive visual highlighting regardless of type or column
 
-This unified approach ensures that rankings are meaningful across the entire room rather than being siloed by column or item type.
+This unified approach ensures that rankings are meaningful across the entire room rather than being
+siloed by column or item type.
 
 **Implementation**: See [`frontend/src/pages/RetroPage.tsx`](../frontend/src/pages/RetroPage.tsx) - `unifiedRankings` calculation
 
