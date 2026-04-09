@@ -30,9 +30,13 @@ export function generateRetroExportMarkdown(data: ExportData): string {
 
   const markdown = [
     `# Retro: ${room.name}`,
-    '',
+    // If there's a description, add it with spaces around it
+    // Otherwise, just add onw new line
+    room.description ? `\n**Description:** ${room.description}\n` : '',
     `Exported at: ${formattedDate}`,
     `Votes per User: ${voteText}`,
+    '',
+    '## Participants',
     '',
     ...generateParticipantsList(room.participants),
     '',
@@ -79,10 +83,6 @@ function generateColumnsContent(columns: DetailedColumnResponse[]): string[] {
   const sortedColumns = [...columns].sort((a, b) => a.sortOrder - b.sortOrder)
 
   sortedColumns.forEach((column, index) => {
-    if (index > 0) {
-      lines.push('') // Add spacing between columns
-    }
-
     lines.push(`## Column: ${column.title}`)
     lines.push('')
 
@@ -110,11 +110,12 @@ function generateColumnsContent(columns: DetailedColumnResponse[]): string[] {
         const voteText = item.voteCount === 1 ? '1 vote' : `${item.voteCount} votes`
 
         lines.push(`### Group: ${group.title || 'Untitled Group'} (${voteText})`)
+        lines.push('')
 
         // Show cards within the group
         if (group.cards.length > 0) {
           group.cards.forEach((card) => {
-            lines.push(`- ${card.content}`)
+            lines.push(`* ${card.content}`)
           })
         }
         lines.push('')
@@ -123,10 +124,12 @@ function generateColumnsContent(columns: DetailedColumnResponse[]): string[] {
       // Show ungrouped cards
       if (ungroupedCards.length > 0) {
         lines.push('### Ungrouped')
+        lines.push('')
+
         ungroupedCards.forEach((item) => {
           const card = item.data as CardDetailResponse
           const voteText = item.voteCount === 1 ? '1 vote' : `${item.voteCount} votes`
-          lines.push(`- ${card.content} (${voteText})`)
+          lines.push(`* ${card.content} (${voteText})`)
         })
         lines.push('')
       }
