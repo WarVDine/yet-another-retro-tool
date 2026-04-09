@@ -108,7 +108,8 @@ export function RetroPage() {
   const { guestUser } = useGuestUser()
   const [room, setRoom] = useState<DetailedRoomResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [operationError, setOperationError] = useState<string | null>(null)
   const [isCopied, setIsCopied] = useState(false)
   const [editingCardId, setEditingCardId] = useState<string | null>(null)
   const [isUpdatingPhase, setIsUpdatingPhase] = useState(false)
@@ -351,7 +352,7 @@ export function RetroPage() {
         await loadRoom()
       } catch (error) {
         console.error('Failed to update room phase:', error)
-        setError('Failed to update room phase. Please try again.')
+        setOperationError('Failed to update room phase. Please try again.')
       } finally {
         setIsUpdatingPhase(false)
       }
@@ -367,13 +368,13 @@ export function RetroPage() {
       const result = await roomApi.exportRoom(room.id)
       if (result.success) {
         // Show success message briefly
-        setError(null)
+        setOperationError(null)
         // You could add a success message state if desired
       }
     } catch (error) {
       console.error('Failed to export retro:', error)
-      setError('Failed to export retrospective. Please try again.')
-      setTimeout(() => setError(null), 5000) // Clear error after 5 seconds
+      setOperationError('Failed to export retrospective. Please try again.')
+      setTimeout(() => setOperationError(null), 5000) // Clear error after 5 seconds
     } finally {
       setIsUpdatingPhase(false)
     }
@@ -492,8 +493,8 @@ export function RetroPage() {
       } catch (error) {
         console.error('Failed to group cards:', error)
         // Don't redirect user, just show a temporary error message
-        setError('Failed to group cards. Please try again.')
-        setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
+        setOperationError('Failed to group cards. Please try again.')
+        setTimeout(() => setOperationError(null), 3000) // Clear error after 3 seconds
       }
     },
     [guestUser.guestId, isFacilitator, room, loadRoom]
@@ -560,8 +561,8 @@ export function RetroPage() {
       } catch (error) {
         console.error('Failed to move card to column:', error)
         // Don't redirect user, just show a temporary error message
-        setError('Failed to move card. Please try again.')
-        setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
+        setOperationError('Failed to move card. Please try again.')
+        setTimeout(() => setOperationError(null), 3000) // Clear error after 3 seconds
       }
     },
     [guestUser.guestId, isFacilitator, room, loadRoom]
@@ -604,8 +605,8 @@ export function RetroPage() {
       } catch (error) {
         console.error('Failed to add card to group:', error)
         // Don't redirect user, just show a temporary error message
-        setError('Failed to add card to group. Please try again.')
-        setTimeout(() => setError(null), 3000) // Clear error after 3 seconds
+        setOperationError('Failed to add card to group. Please try again.')
+        setTimeout(() => setOperationError(null), 3000) // Clear error after 3 seconds
       }
     },
     [guestUser.guestId, isFacilitator, room, loadRoom]
@@ -650,8 +651,8 @@ export function RetroPage() {
         await loadRoom()
       } catch (error) {
         console.error('Failed to cast vote:', error)
-        setError('Failed to cast vote. Please try again.')
-        setTimeout(() => setError(null), 3000)
+        setOperationError('Failed to cast vote. Please try again.')
+        setTimeout(() => setOperationError(null), 3000)
       }
     },
     [guestUser.guestId, room?.currentPhase, loadRoom]
@@ -672,8 +673,8 @@ export function RetroPage() {
         await loadRoom()
       } catch (error) {
         console.error('Failed to remove vote:', error)
-        setError('Failed to remove vote. Please try again.')
-        setTimeout(() => setError(null), 3000)
+        setOperationError('Failed to remove vote. Please try again.')
+        setTimeout(() => setOperationError(null), 3000)
       }
     },
     [guestUser.guestId, room?.currentPhase, loadRoom]
@@ -704,29 +705,95 @@ export function RetroPage() {
     )
   }
 
+
   if (!room) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle className="text-red-600">Room Not Found</CardTitle>
+            <CardTitle className="text-red-600">
+              {error ? 'Connection Error' : 'Room Not Found'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600 mb-4">{'The requested retrospective could not be found.'}</p>
-            <Button asChild>
-              <Link to="/">Back to Home</Link>
-            </Button>
+            <p className="text-gray-600 mb-4">
+              {error || 'The requested retrospective could not be found.'}
+            </p>
+            <div className="space-y-2">
+              {error && (
+                <Button onClick={() => window.location.reload()} className="w-full">
+                  Retry
+                </Button>
+              )}
+              <Button asChild variant={error ? "outline" : "default"}>
+                <Link to="/">Back to Home</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     )
   }
 
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
+  const renderRoomContent = () => (
+    <>
+      {/* Connection Error Banner - Shows polling issues */}
+      {pollingError && (
+        <div className="mb-6">
+          <Card className="border-yellow-200 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="text-yellow-600 mr-3">📡</div>
+                  <div>
+                    <p className="text-yellow-800 font-medium">Connection Issue</p>
+                    <p className="text-yellow-700 text-sm">
+                      Unable to sync with server. Your changes are saved locally.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={manualRefresh}
+                  className="text-yellow-600 hover:text-yellow-800"
+                >
+                  Retry
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Operation Error Banner - Non-blocking errors */}
+      {operationError && (
+        <div className="mb-6">
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="text-orange-600 mr-3">⚠️</div>
+                  <div>
+                    <p className="text-orange-800 font-medium">Operation Failed</p>
+                    <p className="text-orange-700 text-sm">{operationError}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOperationError(null)}
+                  className="text-orange-600 hover:text-orange-800"
+                >
+                  ✕
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-4 mb-4">
               <Button variant="ghost" size="sm" asChild>
@@ -749,6 +816,21 @@ export function RetroPage() {
                 <div className="flex items-center gap-2">
                   <Settings className="w-4 h-4" />
                   <span>Phase: {room.currentPhase}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    pollingError ? 'bg-red-500' : 
+                    isPolling ? 'bg-green-500' : 'bg-gray-400'
+                  }`} />
+                  <span>
+                    {pollingError ? 'Disconnected' : 
+                     isPolling ? 'Connected' : 'Connecting...'}
+                  </span>
+                  {lastSyncTime && !pollingError && (
+                    <span className="text-xs text-gray-400">
+                      (synced {new Date(lastSyncTime).toLocaleTimeString()})
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
@@ -1170,6 +1252,14 @@ export function RetroPage() {
               </Card>
             ))}
           </div>
+    </>
+  )
+
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          {renderRoomContent()}
         </div>
       </div>
     </DndProvider>

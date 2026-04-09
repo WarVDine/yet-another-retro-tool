@@ -63,47 +63,49 @@ export const voteOnTarget = asyncHandler(async (req: Request, res: CustomRespons
       }
     }
 
-    // Check current vote count for user in this room
-    const currentVotesQuery = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(likes)
-      .leftJoin(cards, eq(likes.cardId, cards.id))
-      .leftJoin(cardGroups, eq(likes.groupId, cardGroups.id))
-      .leftJoin(columns, sql`${columns.id} = COALESCE(${cards.columnId}, ${cardGroups.columnId})`)
-      .innerJoin(users, eq(likes.userId, users.id))
-      .where(
-        and(
-          eq(likes.userId, userId),
-          // Only count votes for cards/groups in this room
-          eq(columns.roomId, roomId)
+    // Use a transaction to atomically check vote count and insert
+    const vote = await db.transaction(async (tx) => {
+      // Check current vote count for user in this room
+      const currentVotesQuery = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(likes)
+        .leftJoin(cards, eq(likes.cardId, cards.id))
+        .leftJoin(cardGroups, eq(likes.groupId, cardGroups.id))
+        .leftJoin(columns, sql`${columns.id} = COALESCE(${cards.columnId}, ${cardGroups.columnId})`)
+        .innerJoin(users, eq(likes.userId, users.id))
+        .where(
+          and(
+            eq(likes.userId, userId),
+            // Only count votes for cards/groups in this room
+            eq(columns.roomId, roomId)
+          )
         )
-      )
 
-    const currentVoteCount = currentVotesQuery[0]?.count || 0
+      const currentVoteCount = currentVotesQuery[0]?.count || 0
 
-    if (currentVoteCount >= room.maxVotesPerUser) {
-      res.status(403).json({
-        success: false,
-        error: 'Max Votes Exceeded',
-        message: `You have used all ${room.maxVotesPerUser} of your votes. Remove a vote before adding a new one.`,
-      })
-      return
-    }
+      if (currentVoteCount >= room.maxVotesPerUser) {
+        throw new Error(
+          `MAX_VOTES_EXCEEDED:You have used all ${room.maxVotesPerUser} of your votes. Remove a vote before adding a new one.`
+        )
+      }
 
-    // Create the vote
-    const insertedVotes = await db
-      .insert(likes)
-      .values({
-        userId,
-        cardId: cardId || null,
-        groupId: groupId || null,
-      })
-      .returning()
+      // Create the vote within the transaction
+      const insertedVotes = await tx
+        .insert(likes)
+        .values({
+          userId,
+          cardId: cardId || null,
+          groupId: groupId || null,
+        })
+        .returning()
 
-    const vote = insertedVotes[0]
-    if (!vote) {
-      throw new Error('Failed to create vote')
-    }
+      const newVote = insertedVotes[0]
+      if (!newVote) {
+        throw new Error('Failed to create vote')
+      }
+
+      return newVote
+    })
 
     res.status(201).json({
       success: true,
@@ -111,6 +113,18 @@ export const voteOnTarget = asyncHandler(async (req: Request, res: CustomRespons
     })
   } catch (error) {
     console.error('Vote creation error:', error)
+
+    // Handle max votes exceeded error
+    if (error instanceof Error && error.message.startsWith('MAX_VOTES_EXCEEDED:')) {
+      const message = error.message.substring('MAX_VOTES_EXCEEDED:'.length)
+      res.status(403).json({
+        success: false,
+        error: 'Max Votes Exceeded',
+        message,
+      })
+      return
+    }
+
     res.status(500).json({
       success: false,
       error: 'Internal Server Error',

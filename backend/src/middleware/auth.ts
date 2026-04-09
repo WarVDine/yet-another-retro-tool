@@ -235,3 +235,69 @@ export const requireFacilitator = async (req: Request, res: CustomResponse, next
     })
   }
 }
+
+/**
+ * Middleware to require facilitator access for card operations
+ * Gets roomId by looking up the card first
+ */
+export const requireFacilitatorForCard = async (req: Request, res: CustomResponse, next: NextFunction) => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'User authentication required',
+      })
+      return
+    }
+
+    const cardId = req.params.id
+    if (!cardId) {
+      res.status(400).json({
+        success: false,
+        error: 'Validation Error',
+        message: 'Card ID is required',
+      })
+      return
+    }
+
+    // Get the card to find its room
+    const card = await db.query.cards.findFirst({
+      where: eq(cards.id, cardId),
+      with: {
+        column: true,
+      },
+    })
+
+    if (!card) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Card not found',
+      })
+      return
+    }
+
+    const roomId = card.column.roomId
+    const isFacilitator = await validateFacilitatorRole(req.userId, roomId)
+
+    if (!isFacilitator) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'Facilitator access required for this action',
+      })
+      return
+    }
+
+    // Store roomId for use in the controller
+    req.roomId = roomId
+    next()
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: error instanceof Error ? error.message : 'Failed to validate facilitator access',
+    })
+  }
+}

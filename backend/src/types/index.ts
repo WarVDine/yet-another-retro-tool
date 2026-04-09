@@ -77,10 +77,8 @@ export type {
   CreateRoomRequest,
   RoomResponse,
   ColumnResponse,
-  JoinRoomRequest,
-  JoinRoomResponse,
   DetailedRoomResponse,
   DetailedColumnResponse,
   CardResponse,
-  ParticipantResponse
+  ParticipantResponse,
 } from '@yet-another-retro-tool/shared'
