@@ -4,14 +4,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/database/connection'
 import { cards } from '@/database/schema'
 import { asyncHandler } from '@/middleware/errorHandler'
-import {
-  resolveGuestUser,
-  validateRoomParticipant,
-  validateCardOwnership,
-  validateFacilitatorRole,
-  getRoomIdFromColumn,
-  getRoomIdFromCard,
-} from '@/middleware/auth'
+import { validateCardOwnership, validateRoomParticipant, getRoomIdFromColumn, getRoomIdFromCard } from '@/middleware/auth'
 import { CustomResponse } from '@/types'
 import {
   CreateCardRequest,
@@ -21,6 +14,7 @@ import {
   CardDetailResponse,
 } from '@yet-another-retro-tool/shared'
 import { moveCardToColumn, insertCardAtPosition } from '@/utils/positionUtils'
+import { filterCardResponse } from '@/utils/responseFilter'
 
 /**
  * Create a new card
@@ -28,22 +22,19 @@ import { moveCardToColumn, insertCardAtPosition } from '@/utils/positionUtils'
  */
 export const createCard = asyncHandler(
   async (req: Request<{}, any, CreateCardRequest>, res: CustomResponse<CardDetailResponse>) => {
-    const { columnId, content, guestId } = req.body as CreateCardRequest
+    const { columnId, content } = req.body as CreateCardRequest
 
     // Validate required fields
-    if (!columnId || !content?.trim() || !guestId) {
+    if (!columnId || !content?.trim()) {
       res.status(400).json({
         success: false,
         error: 'Validation Error',
-        message: 'Column ID, content, and guest ID are required',
+        message: 'Column ID and content are required',
       })
       return
     }
 
     try {
-      // Resolve guest user to userId
-      const userId = await resolveGuestUser(guestId)
-
       // Get room ID from column and validate participation
       const roomId = await getRoomIdFromColumn(columnId)
       if (!roomId) {
@@ -55,6 +46,10 @@ export const createCard = asyncHandler(
         return
       }
 
+      // Authentication guaranteed by requireGuestUser middleware
+      const userId = req.userId!
+
+      // Validate user is participant in room
       const isParticipant = await validateRoomParticipant(userId, roomId)
       if (!isParticipant) {
         res.status(403).json({
@@ -95,37 +90,24 @@ export const createCard = asyncHandler(
         return
       }
 
-      // Fetch the created card with author info for response
-      const cardWithAuthor = await db.query.cards.findFirst({
-        where: eq(cards.id, newCard.id),
-        with: {
-          author: true,
-        },
-      })
-
-      if (!cardWithAuthor) {
-        res.status(500).json({
-          success: false,
-          error: 'Server Error',
-          message: 'Failed to retrieve created card',
-        })
-        return
+      // Build card response directly from newCard (no extra DB call needed)
+      const cardResponse = {
+        id: newCard.id,
+        content: newCard.content,
+        isAnonymous: newCard.isAnonymous,
+        authorName: undefined, // Always undefined since cards are always anonymous
+        sortOrder: newCard.sortOrder,
+        createdAt: newCard.createdAt.toISOString(),
+        columnId: newCard.columnId,
+        updatedAt: newCard.updatedAt.toISOString(),
+        isOwner: true, // Always true for the creator
       }
+
+      const filteredResponse = filterCardResponse(cardResponse)
 
       res.status(201).json({
         success: true,
-        data: {
-          id: cardWithAuthor.id,
-          content: cardWithAuthor.content,
-          isAnonymous: cardWithAuthor.isAnonymous,
-          authorName: cardWithAuthor.isAnonymous ? undefined : cardWithAuthor.author.displayName,
-          sortOrder: cardWithAuthor.sortOrder,
-          createdAt: cardWithAuthor.createdAt.toISOString(),
-          columnId: cardWithAuthor.columnId,
-          authorId: cardWithAuthor.authorId,
-          updatedAt: cardWithAuthor.updatedAt.toISOString(),
-          isOwner: true, // Always true for the creator
-        },
+        data: filteredResponse,
         message: 'Card created successfully',
       })
     } catch (error) {
@@ -145,22 +127,22 @@ export const createCard = asyncHandler(
  */
 export const updateCard = asyncHandler(async (req: Request, res: CustomResponse<CardDetailResponse>) => {
   const { id: cardId } = req.params as { id: string }
-  const { content, guestId } = req.body as UpdateCardRequest
+  const { content } = req.body as UpdateCardRequest
 
   // Validate required fields
-  if (!content?.trim() || !guestId) {
+  if (!content?.trim()) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Content and guest ID are required',
+      message: 'Content is required',
     })
     return
   }
 
-  try {
-    // Resolve guest user to userId
-    const userId = await resolveGuestUser(guestId)
+  // Authentication guaranteed by requireGuestUser middleware
+  const userId = req.userId!
 
+  try {
     // Validate card ownership
     const isOwner = await validateCardOwnership(cardId, userId)
     if (!isOwner) {
@@ -191,37 +173,24 @@ export const updateCard = asyncHandler(async (req: Request, res: CustomResponse<
       return
     }
 
-    // Fetch updated card with author info
-    const cardWithAuthor = await db.query.cards.findFirst({
-      where: eq(cards.id, cardId),
-      with: {
-        author: true,
-      },
-    })
-
-    if (!cardWithAuthor) {
-      res.status(500).json({
-        success: false,
-        error: 'Server Error',
-        message: 'Failed to retrieve updated card',
-      })
-      return
+    // Build card response directly from updatedCard (no extra DB call needed)
+    const cardResponse = {
+      id: updatedCard.id,
+      content: updatedCard.content,
+      isAnonymous: updatedCard.isAnonymous,
+      authorName: undefined, // Always undefined since cards are always anonymous
+      sortOrder: updatedCard.sortOrder,
+      createdAt: updatedCard.createdAt.toISOString(),
+      columnId: updatedCard.columnId,
+      updatedAt: updatedCard.updatedAt.toISOString(),
+      isOwner: true, // Always true for the owner making the update
     }
+
+    const filteredResponse = filterCardResponse(cardResponse)
 
     res.json({
       success: true,
-      data: {
-        id: cardWithAuthor.id,
-        content: cardWithAuthor.content,
-        isAnonymous: cardWithAuthor.isAnonymous,
-        authorName: cardWithAuthor.isAnonymous ? undefined : cardWithAuthor.author.displayName,
-        sortOrder: cardWithAuthor.sortOrder,
-        createdAt: cardWithAuthor.createdAt.toISOString(),
-        columnId: cardWithAuthor.columnId,
-        authorId: cardWithAuthor.authorId,
-        updatedAt: cardWithAuthor.updatedAt.toISOString(),
-        isOwner: true, // Always true for the owner making the update
-      },
+      data: filteredResponse,
       message: 'Card updated successfully',
     })
   } catch (error) {
@@ -240,22 +209,11 @@ export const updateCard = asyncHandler(async (req: Request, res: CustomResponse<
  */
 export const deleteCard = asyncHandler(async (req: Request, res: CustomResponse<void>) => {
   const { id: cardId } = req.params as { id: string }
-  const { guestId } = req.body as { guestId: string }
 
-  // Validate required fields
-  if (!guestId) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Guest ID is required',
-    })
-    return
-  }
+  // Authentication guaranteed by requireGuestUser middleware
+  const userId = req.userId!
 
   try {
-    // Resolve guest user to userId
-    const userId = await resolveGuestUser(guestId)
-
     // Validate card ownership
     const isOwner = await validateCardOwnership(cardId, userId)
     if (!isOwner) {
@@ -300,22 +258,22 @@ export const deleteCard = asyncHandler(async (req: Request, res: CustomResponse<
  */
 export const moveCard = asyncHandler(async (req: Request, res: CustomResponse<CardDetailResponse>) => {
   const cardId = req.params.id
-  const { targetColumnId, targetPosition, guestId } = req.body as MoveCardRequest
+  const { targetColumnId, targetPosition } = req.body as MoveCardRequest
 
   // Validate required fields
-  if (!cardId || !targetColumnId || !guestId) {
+  if (!cardId || !targetColumnId) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'cardId, targetColumnId and guestId are required',
+      message: 'cardId and targetColumnId are required',
     })
     return
   }
 
-  try {
-    // Resolve guest user
-    const userId = await resolveGuestUser(guestId)
+  // Authentication guaranteed by requireGuestUser middleware
+  const userId = req.userId!
 
+  try {
     // Get room ID from the card's current column
     const cardRoomId = await getRoomIdFromCard(cardId)
     if (!cardRoomId) {
@@ -327,16 +285,7 @@ export const moveCard = asyncHandler(async (req: Request, res: CustomResponse<Ca
       return
     }
 
-    // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(userId, cardRoomId)
-    if (!isFacilitator) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'Only facilitators can move cards',
-      })
-      return
-    }
+    // Facilitator role already validated by requireFacilitator middleware
 
     // Validate target column belongs to the same room
     const targetRoomId = await getRoomIdFromColumn(targetColumnId)
@@ -364,21 +313,22 @@ export const moveCard = asyncHandler(async (req: Request, res: CustomResponse<Ca
       return
     }
 
-    const cardResponse: CardDetailResponse = {
+    const cardResponse = {
       id: updatedCard.id,
       content: updatedCard.content,
       isAnonymous: updatedCard.isAnonymous,
       sortOrder: updatedCard.sortOrder,
       createdAt: updatedCard.createdAt.toISOString(),
       columnId: updatedCard.columnId,
-      authorId: updatedCard.authorId,
       updatedAt: updatedCard.updatedAt.toISOString(),
-      isOwner: true, // User owns the card since they moved it
+      isOwner: false, // Moving doesn't imply ownership
     }
+
+    const filteredResponse = filterCardResponse(cardResponse)
 
     res.json({
       success: true,
-      data: cardResponse,
+      data: filteredResponse,
       message: 'Card moved successfully',
     })
   } catch (error) {
@@ -397,22 +347,19 @@ export const moveCard = asyncHandler(async (req: Request, res: CustomResponse<Ca
  */
 export const updateCardPosition = asyncHandler(async (req: Request, res: CustomResponse<CardDetailResponse>) => {
   const cardId = req.params.id
-  const { sortOrder, guestId } = req.body as UpdateCardPositionRequest
+  const { sortOrder } = req.body as UpdateCardPositionRequest
 
   // Validate required fields
-  if (!cardId || sortOrder === undefined || !guestId) {
+  if (!cardId || sortOrder === undefined) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'cardId, sortOrder and guestId are required',
+      message: 'cardId and sortOrder are required',
     })
     return
   }
 
   try {
-    // Resolve guest user
-    const userId = await resolveGuestUser(guestId)
-
     // Get room ID from the card
     const roomId = await getRoomIdFromCard(cardId)
     if (!roomId) {
@@ -424,16 +371,7 @@ export const updateCardPosition = asyncHandler(async (req: Request, res: CustomR
       return
     }
 
-    // Validate user is a facilitator of the room
-    const isFacilitator = await validateFacilitatorRole(userId, roomId)
-    if (!isFacilitator) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'Only facilitators can reorder cards',
-      })
-      return
-    }
+    // Facilitator role already validated by requireFacilitator middleware
 
     // Get current card to find its column
     const [currentCard] = await db.select().from(cards).where(eq(cards.id, cardId))
@@ -462,21 +400,22 @@ export const updateCardPosition = asyncHandler(async (req: Request, res: CustomR
       return
     }
 
-    const cardResponse: CardDetailResponse = {
+    const cardResponse = {
       id: updatedCard.id,
       content: updatedCard.content,
       isAnonymous: updatedCard.isAnonymous,
       sortOrder: updatedCard.sortOrder,
       createdAt: updatedCard.createdAt.toISOString(),
       columnId: updatedCard.columnId,
-      authorId: updatedCard.authorId,
       updatedAt: updatedCard.updatedAt.toISOString(),
-      isOwner: true, // User owns the card since they updated it
+      isOwner: false, // Position updates don't imply ownership
     }
+
+    const filteredResponse = filterCardResponse(cardResponse)
 
     res.json({
       success: true,
-      data: cardResponse,
+      data: filteredResponse,
       message: 'Card position updated successfully',
     })
   } catch (error) {

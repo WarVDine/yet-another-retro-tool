@@ -38,14 +38,13 @@ export interface CreateRoomRequest {
   name: string
   description?: string
   template: 'classic' | 'startStopContinue' | 'madSadGlad' | 'fourLs'
-  guestId: string // Required guest ID - name comes from guest user
 }
 
 export interface RoomResponse {
   id: string
   name: string
   description?: string | undefined
-  facilitatorCode: string
+  facilitatorCode?: string // Only present for facilitators
   participantCode: string
   currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
   maxVotesPerUser: number
@@ -64,13 +63,11 @@ export interface ColumnResponse {
 // Room joining types
 export interface JoinRoomRequest {
   code: string
-  guestId: string // Required guest ID - name comes from guest user
 }
 
 export interface JoinRoomResponse {
   roomId: string
   role: 'facilitator' | 'participant'
-  participantId: string
 }
 
 // Guest user management types
@@ -94,8 +91,8 @@ export interface DetailedRoomResponse {
   id: string
   name: string
   description?: string | undefined
-  facilitatorCode: string  // Only shown to facilitators
-  participantCode: string  // Only shown to facilitators
+  facilitatorCode?: string // Only shown to facilitators
+  participantCode: string // Always shown
   currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
   maxVotesPerUser: number
   isActive: boolean
@@ -118,7 +115,7 @@ export interface CardResponse {
   id: string
   content: string
   isAnonymous: boolean
-  authorName?: string | undefined  // Only if not anonymous
+  authorName?: string | undefined // Only if not anonymous
   sortOrder: number
   createdAt: string
 }
@@ -127,28 +124,23 @@ export interface CardResponse {
 export interface CreateCardRequest {
   columnId: string
   content: string
-  guestId: string
 }
 
 export interface UpdateCardRequest {
   content: string
-  guestId: string
 }
 
 export interface MoveCardRequest {
   targetColumnId: string
   targetPosition?: number // Optional sort order
-  guestId: string
 }
 
 export interface UpdateCardPositionRequest {
   sortOrder: number
-  guestId: string
 }
 
 export interface CardDetailResponse extends CardResponse {
   columnId: string
-  authorId: string
   updatedAt: string
   isOwner?: boolean // Frontend-only flag for ownership indication
   voteCount?: number // Only shown in discussion phase
@@ -166,7 +158,6 @@ export interface ParticipantResponse {
 
 export interface UpdateRoomPhaseRequest {
   phase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
-  guestId: string
 }
 
 // Card group types
@@ -174,22 +165,18 @@ export interface CreateCardGroupRequest {
   columnId: string
   title: string
   cardIds: string[] // Initial cards to add to the group
-  guestId: string
 }
 
 export interface UpdateCardGroupRequest {
   title?: string
-  guestId: string
 }
 
 export interface AddCardsToGroupRequest {
   cardIds: string[]
-  guestId: string
 }
 
 export interface RemoveCardsFromGroupRequest {
   cardIds: string[]
-  guestId: string
 }
 
 export interface CardGroupResponse {
@@ -215,8 +202,6 @@ export interface VoteRequest {
   cardId?: string
   /** ID of group to vote on (exclusive with cardId) */
   groupId?: string
-  /** Guest ID of the voting user */
-  guestId: string
 }
 
 /**
@@ -228,8 +213,6 @@ export interface UnvoteRequest {
   cardId?: string
   /** ID of group to remove vote from (exclusive with cardId) */
   groupId?: string
-  /** Guest ID of the voting user */
-  guestId: string
 }
 
 /**
@@ -237,9 +220,7 @@ export interface UnvoteRequest {
  */
 export interface VoteResponse {
   id: string
-  userId: string
   cardId?: string
   groupId?: string
   createdAt: string
 }
-

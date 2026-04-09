@@ -25,20 +25,20 @@ import { asyncHandler } from '@/middleware/errorHandler'
 import { validateFacilitatorRole, validateRoomParticipant } from '@/middleware/auth'
 import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
+import { filterRoomResponseByRole, createMinimalRoomResponse, getUserRoleInRoom } from '@/utils/responseFilter'
 
 export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
-  const { name, description, template, guestId }: CreateRoomRequest = req.body
+  const { name, description, template }: CreateRoomRequest = req.body
 
   // Validation
-  if (!name || !template || !guestId) {
+  if (!name || !template) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Name, template, and guest ID are required',
+      message: 'Name and template are required',
     })
     return
   }
-
   // Validate template exists
   if (!(template in RETRO_TEMPLATES)) {
     res.status(400).json({
@@ -48,6 +48,9 @@ export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<
     })
     return
   }
+
+  // guestId is guaranteed to be available from requireGuestUser middleware
+  const guestId = req.guestId!
 
   // Generate unique codes
   const facilitatorCode = generateCode(8)
@@ -103,25 +106,29 @@ export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<
       return { room, columns: createdColumns }
     })
 
+    // Create full room response first
+    const fullRoomResponse = {
+      id: result.room.id,
+      name: result.room.name,
+      description: result.room.description || undefined,
+      facilitatorCode: result.room.facilitatorCode,
+      participantCode: result.room.participantCode,
+      currentPhase: result.room.currentPhase,
+      maxVotesPerUser: result.room.maxVotesPerUser,
+      columns: result.columns.map((col) => ({
+        id: col.id,
+        title: col.title,
+        description: col.description || undefined,
+        color: col.color,
+        sortOrder: col.sortOrder,
+      })),
+      createdAt: result.room.createdAt.toISOString(),
+    }
+
+    // Creator is always a facilitator, so return full response with codes
     res.status(201).json({
       success: true,
-      data: {
-        id: result.room.id,
-        name: result.room.name,
-        description: result.room.description || undefined,
-        facilitatorCode: result.room.facilitatorCode,
-        participantCode: result.room.participantCode,
-        currentPhase: result.room.currentPhase,
-        maxVotesPerUser: result.room.maxVotesPerUser,
-        columns: result.columns.map((col) => ({
-          id: col.id,
-          title: col.title,
-          description: col.description || undefined,
-          color: col.color,
-          sortOrder: col.sortOrder,
-        })),
-        createdAt: result.room.createdAt.toISOString(),
-      },
+      data: fullRoomResponse,
       message: 'Room created successfully',
     })
   } catch (error) {
@@ -135,14 +142,14 @@ export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<
 })
 
 export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<JoinRoomResponse>) => {
-  const { code, guestId }: JoinRoomRequest = req.body
+  const { code }: JoinRoomRequest = req.body
 
   // Validation
-  if (!code || !guestId) {
+  if (!code) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Code and guest ID are required',
+      message: 'Code is required',
     })
     return
   }
@@ -162,26 +169,20 @@ export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<Jo
       return
     }
 
+    // userId is guaranteed to be available from requireGuestUser middleware
+    const userId = req.userId!
+
     // Determine role based on which code was used
     const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
 
     // Handle user lookup and room participation in transaction
-    const result = await db.transaction(async (tx) => {
-      // Find user by guest ID
-      const user = await tx.query.users.findFirst({
-        where: eq(users.guestId, guestId),
-      })
-
-      if (!user) {
-        throw new Error('Guest user not found. Please create guest user first.')
-      }
-
-      // Add as room participant - if the user is already a participant, update the role
+    // Add as room participant - if the user is already a participant, update the role
+    await db.transaction(async (tx) => {
       await tx
         .insert(roomParticipants)
         .values({
           roomId: room.id,
-          userId: user.id,
+          userId: userId,
           role,
         })
         .onConflictDoUpdate({
@@ -190,8 +191,6 @@ export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<Jo
             role,
           },
         })
-
-      return { user }
     })
 
     res.json({
@@ -199,7 +198,6 @@ export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<Jo
       data: {
         roomId: room.id,
         role,
-        participantId: result.user.id,
       },
       message: 'Successfully joined room',
     })
@@ -215,7 +213,6 @@ export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<Jo
 
 export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
   const { id } = req.params
-  const { guestId } = req.query as { guestId?: string }
 
   if (!id) {
     res.status(400).json({
@@ -227,20 +224,6 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
   }
 
   try {
-    // Resolve current user if guestId is provided (for ownership flags)
-    let currentUserId: string | null = null
-    if (guestId) {
-      try {
-        const user = await db.query.users.findFirst({
-          where: eq(users.guestId, guestId),
-        })
-        currentUserId = user?.id || null
-      } catch (error) {
-        // If guest ID is invalid, continue without ownership flags
-        console.warn('Invalid guest ID provided for room lookup:', guestId)
-      }
-    }
-
     // Load room with all related data using Drizzle relations
     const room = await db.query.rooms.findFirst({
       where: eq(rooms.id, id),
@@ -287,18 +270,8 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
       return
     }
 
-    // Validate participant access if guestId is provided
-    if (guestId && currentUserId) {
-      const isParticipant = await validateRoomParticipant(currentUserId, room.id)
-      if (!isParticipant) {
-        res.status(403).json({
-          success: false,
-          error: 'Authorization Error',
-          message: 'You must be a room participant to access this room',
-        })
-        return
-      }
-    }
+    // Authentication and room participation guaranteed by middleware
+    const currentUserId = req.userId!
 
     // Load vote information based on current phase
     let voteData: {
@@ -388,93 +361,98 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
       })
     }
 
-    res.json({
-      success: true,
-      data: {
-        id: room.id,
-        name: room.name,
-        description: room.description || undefined,
-        facilitatorCode: room.facilitatorCode,
-        participantCode: room.participantCode,
-        currentPhase: room.currentPhase,
-        maxVotesPerUser: room.maxVotesPerUser,
-        isActive: room.isActive,
-        columns: room.columns.map((col) => ({
-          id: col.id,
-          title: col.title,
-          description: col.description || undefined,
-          color: col.color,
-          sortOrder: col.sortOrder,
-          cards: col.cards.map((card) => {
-            const cardVoteInfo = voteData.cardVotes.get(card.id)
-            return {
-              id: card.id,
-              content: card.content,
-              isAnonymous: card.isAnonymous,
-              authorName: card.isAnonymous ? undefined : card.author.displayName,
-              sortOrder: card.sortOrder,
-              createdAt: card.createdAt.toISOString(),
-              // Add CardDetailResponse specific fields
-              columnId: card.columnId,
-              authorId: card.authorId,
-              updatedAt: card.updatedAt.toISOString(),
-              // Add ownership flag for frontend (only if currentUserId is available)
-              ...(currentUserId && { isOwner: currentUserId === card.authorId }),
-              // Add vote information based on phase
-              ...(room.currentPhase === 'discussing' && { 
-                voteCount: cardVoteInfo?.total || 0
-              }),
-              ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
-            }
-          }),
-          cardGroups: col.cardGroups.map((group) => {
-            const groupVoteInfo = voteData.groupVotes.get(group.id)
-            return {
-              id: group.id,
-              columnId: group.columnId,
-              title: group.title,
-              description: group.description || null,
-              sortOrder: group.sortOrder,
-              createdAt: group.createdAt.toISOString(),
-              updatedAt: group.updatedAt.toISOString(),
-              // Add vote information based on phase
-              ...(room.currentPhase === 'discussing' && { 
-                voteCount: groupVoteInfo?.total || 0
-              }),
-              ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
-              cards: group.cardMemberships.map((membership) => ({
-                id: membership.card.id,
-                columnId: membership.card.columnId,
-                authorId: membership.card.authorId,
-                content: membership.card.content,
-                isAnonymous: membership.card.isAnonymous,
-                sortOrder: membership.card.sortOrder,
-                createdAt: membership.card.createdAt.toISOString(),
-                updatedAt: membership.card.updatedAt.toISOString(),
-                // Add ownership flag for frontend (only if currentUserId is available)
-                ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
-                // Cards in groups don't show individual vote counts
-              })),
-            }
-          }),
-        })),
-        participants: room.participants.map((p) => {
-          const participantVoteInfo = voteData.participantVotes.get(p.user.id)
+    // Build the full room response first
+    const fullRoomResponse: DetailedRoomResponse = {
+      id: room.id,
+      name: room.name,
+      description: room.description || undefined,
+      facilitatorCode: room.facilitatorCode,
+      participantCode: room.participantCode,
+      currentPhase: room.currentPhase,
+      maxVotesPerUser: room.maxVotesPerUser,
+      isActive: room.isActive,
+      columns: room.columns.map((col) => ({
+        id: col.id,
+        title: col.title,
+        description: col.description || undefined,
+        color: col.color,
+        sortOrder: col.sortOrder,
+        cards: col.cards.map((card) => {
+          const cardVoteInfo = voteData.cardVotes.get(card.id)
           return {
-            id: p.user.id,
-            displayName: p.user.displayName,
-            role: p.role,
-            joinedAt: p.joinedAt.toISOString(),
-            // Add vote information during voting phase
-            ...(room.currentPhase === 'voting' &&
-              participantVoteInfo && {
-                votesUsed: participantVoteInfo.used,
-                votesRemaining: participantVoteInfo.remaining,
-              }),
+            id: card.id,
+            content: card.content,
+            isAnonymous: card.isAnonymous,
+            authorName: card.isAnonymous ? undefined : card.author.displayName,
+            sortOrder: card.sortOrder,
+            createdAt: card.createdAt.toISOString(),
+            // Add CardDetailResponse specific fields
+            columnId: card.columnId,
+            updatedAt: card.updatedAt.toISOString(),
+            // Add ownership flag for frontend (only if currentUserId is available)
+            ...(currentUserId && { isOwner: currentUserId === card.authorId }),
+            // Add vote information based on phase
+            ...(room.currentPhase === 'discussing' && {
+              voteCount: cardVoteInfo?.total || 0,
+            }),
+            ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
           }
         }),
-        createdAt: room.createdAt.toISOString(),
-      },
+        cardGroups: col.cardGroups.map((group) => {
+          const groupVoteInfo = voteData.groupVotes.get(group.id)
+          return {
+            id: group.id,
+            columnId: group.columnId,
+            title: group.title,
+            description: group.description || null,
+            sortOrder: group.sortOrder,
+            createdAt: group.createdAt.toISOString(),
+            updatedAt: group.updatedAt.toISOString(),
+            // Add vote information based on phase
+            ...(room.currentPhase === 'discussing' && {
+              voteCount: groupVoteInfo?.total || 0,
+            }),
+            ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
+            cards: group.cardMemberships.map((membership) => ({
+              id: membership.card.id,
+              columnId: membership.card.columnId,
+              content: membership.card.content,
+              isAnonymous: membership.card.isAnonymous,
+              sortOrder: membership.card.sortOrder,
+              createdAt: membership.card.createdAt.toISOString(),
+              updatedAt: membership.card.updatedAt.toISOString(),
+              // Add ownership flag for frontend (only if currentUserId is available)
+              ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
+              // Cards in groups don't show individual vote counts
+            })),
+          }
+        }),
+      })),
+      participants: room.participants.map((p) => {
+        const participantVoteInfo = voteData.participantVotes.get(p.user.id)
+        return {
+          id: p.user.id,
+          displayName: p.user.displayName,
+          role: p.role,
+          joinedAt: p.joinedAt.toISOString(),
+          // Add vote information during voting phase
+          ...(room.currentPhase === 'voting' &&
+            participantVoteInfo && {
+              votesUsed: participantVoteInfo.used,
+              votesRemaining: participantVoteInfo.remaining,
+            }),
+        }
+      }),
+      createdAt: room.createdAt.toISOString(),
+    }
+
+    // Determine user role and apply filtering
+    const userRole = getUserRoleInRoom(currentUserId, fullRoomResponse.participants)
+    const filteredResponse = filterRoomResponseByRole(fullRoomResponse, userRole)
+
+    res.json({
+      success: true,
+      data: filteredResponse,
       message: 'Room loaded successfully',
     })
   } catch (error) {
@@ -487,44 +465,21 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
   }
 })
 
-export const updateRoomPhase = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
+export const updateRoomPhase = asyncHandler(async (req: Request, res: CustomResponse<Partial<RoomResponse>>) => {
   const { id } = req.params
-  const { phase, guestId }: UpdateRoomPhaseRequest = req.body
+  const { phase }: UpdateRoomPhaseRequest = req.body
 
-  if (!id || !phase || !guestId) {
+  if (!id || !phase) {
     res.status(400).json({
       success: false,
       error: 'Validation Error',
-      message: 'Room ID, phase, and guest ID are required',
+      message: 'Room ID and phase are required',
     })
     return
   }
 
   try {
-    // Resolve guest ID to user ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.guestId, guestId),
-    })
-
-    if (!user) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'User not found',
-      })
-      return
-    }
-
-    // Use auth utility function to validate facilitator role
-    const isFacilitator = await validateFacilitatorRole(user.id, id)
-    if (!isFacilitator) {
-      res.status(403).json({
-        success: false,
-        error: 'Authorization Error',
-        message: 'Only facilitators can change room phases',
-      })
-      return
-    }
+    // Facilitator role already validated by requireFacilitator middleware
 
     // Update the room phase
     const [updatedRoom] = await db
@@ -545,13 +500,13 @@ export const updateRoomPhase = asyncHandler(async (req: Request, res: CustomResp
       return
     }
 
+    // Phase updates don't need to return codes or full room data
     res.json({
       success: true,
       data: {
         id: updatedRoom.id,
         name: updatedRoom.name,
         description: updatedRoom.description || undefined,
-        facilitatorCode: updatedRoom.facilitatorCode,
         participantCode: updatedRoom.participantCode,
         currentPhase: updatedRoom.currentPhase,
         maxVotesPerUser: updatedRoom.maxVotesPerUser,

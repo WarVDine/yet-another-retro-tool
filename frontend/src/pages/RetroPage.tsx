@@ -157,7 +157,7 @@ export function RetroPage() {
     try {
       setIsLoading(true)
       // Pass guestId to get ownership flags for cards
-      const roomData = await roomApi.getRoomById(id, guestUser.guestId || undefined)
+      const roomData = await roomApi.getRoomById(id)
       setRoom(roomData)
     } catch (error) {
       // Check if it's a 403 (not a participant) or 404 (room not found)
@@ -240,7 +240,6 @@ export function RetroPage() {
     manualRefresh,
   } = useRoomPolling({
     roomId: id || null,
-    guestId: guestUser.guestId,
     enabled: !!room && !isLoading, // Only start polling after initial load
     interval: 5000, // 5 seconds
     onUpdate: handlePollingUpdate,
@@ -260,7 +259,6 @@ export function RetroPage() {
       const newCard = await cardApi.createCard({
         columnId,
         content,
-        guestId: guestUser.guestId,
       })
 
       // Update UI after successful creation
@@ -293,7 +291,6 @@ export function RetroPage() {
 
       const updatedCard = await cardApi.updateCard(cardId, {
         content,
-        guestId: guestUser.guestId,
       })
 
       // Update UI after successful update
@@ -320,7 +317,7 @@ export function RetroPage() {
       }
 
       // Make API call first
-      await cardApi.deleteCard(cardId, guestUser.guestId)
+      await cardApi.deleteCard(cardId)
 
       // Only update UI after successful deletion
       setRoom((prevRoom) => {
@@ -355,7 +352,6 @@ export function RetroPage() {
       try {
         await roomApi.updateRoomPhase(id, {
           phase: newPhase,
-          guestId: guestUser.guestId,
         })
 
         // Reload room data to get updated phase
@@ -377,7 +373,6 @@ export function RetroPage() {
       try {
         await cardGroupApi.updateCardGroup(groupId, {
           title,
-          guestId: guestUser.guestId,
         })
 
         // Reload room data to get updated groups
@@ -395,7 +390,7 @@ export function RetroPage() {
       if (!guestUser.guestId) return
 
       try {
-        await cardGroupApi.deleteCardGroup(groupId, guestUser.guestId)
+        await cardGroupApi.deleteCardGroup(groupId)
 
         // Reload room data to get updated groups
         await loadRoom()
@@ -461,7 +456,6 @@ export function RetroPage() {
         if (draggedCardCurrentGroup) {
           await cardGroupApi.removeCardsFromGroup(draggedCardCurrentGroup.id, {
             cardIds: [draggedCardId],
-            guestId: guestUser.guestId,
           })
         }
 
@@ -470,7 +464,6 @@ export function RetroPage() {
           // Add dragged card to existing group
           await cardGroupApi.addCardsToGroup(targetGroup.id, {
             cardIds: [draggedCardId],
-            guestId: guestUser.guestId,
           })
         } else {
           // Create new group with both cards
@@ -478,7 +471,6 @@ export function RetroPage() {
             columnId: targetColumn.id,
             title: 'New Group',
             cardIds: [targetCardId, draggedCardId],
-            guestId: guestUser.guestId,
           })
         }
 
@@ -540,7 +532,6 @@ export function RetroPage() {
         if (currentGroup) {
           await cardGroupApi.removeCardsFromGroup(currentGroup.id, {
             cardIds: [draggedCardId],
-            guestId: guestUser.guestId,
           })
         }
 
@@ -548,7 +539,6 @@ export function RetroPage() {
         if (currentColumn.id !== targetColumnId) {
           await cardApi.moveCard(draggedCardId, {
             targetColumnId,
-            guestId: guestUser.guestId,
           })
         }
 
@@ -586,7 +576,6 @@ export function RetroPage() {
         if (draggedCardCurrentGroup && draggedCardCurrentGroup.id !== targetGroupId) {
           await cardGroupApi.removeCardsFromGroup(draggedCardCurrentGroup.id, {
             cardIds: [draggedCardId],
-            guestId: guestUser.guestId,
           })
         }
 
@@ -594,7 +583,6 @@ export function RetroPage() {
         if (!draggedCardCurrentGroup || draggedCardCurrentGroup.id !== targetGroupId) {
           await cardGroupApi.addCardsToGroup(targetGroupId, {
             cardIds: [draggedCardId],
-            guestId: guestUser.guestId,
           })
         }
 
@@ -638,9 +626,9 @@ export function RetroPage() {
 
       try {
         if (targetType === 'card') {
-          await voteApi.voteOnCard(targetId, guestUser.guestId)
+          await voteApi.voteOnCard(targetId)
         } else {
-          await voteApi.voteOnGroup(targetId, guestUser.guestId)
+          await voteApi.voteOnGroup(targetId)
         }
         
         // Reload room data to get updated vote counts
@@ -660,9 +648,9 @@ export function RetroPage() {
 
       try {
         if (targetType === 'card') {
-          await voteApi.unvoteCard(targetId, guestUser.guestId)
+          await voteApi.unvoteCard(targetId)
         } else {
-          await voteApi.unvoteGroup(targetId, guestUser.guestId)
+          await voteApi.unvoteGroup(targetId)
         }
         
         // Reload room data to get updated vote counts
