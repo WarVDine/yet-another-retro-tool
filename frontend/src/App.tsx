@@ -7,6 +7,7 @@ import { GuestUserModal } from '@/components/GuestUserModal'
 import { Header } from '@/components/Header'
 import { CreateRetroPage } from '@/pages/CreateRetroPage'
 import { HomePage } from '@/pages/HomePage'
+import { MyRetrosPage } from '@/pages/MyRetrosPage'
 import { RetroPage } from '@/pages/RetroPage'
 import './App.css'
 
@@ -17,6 +18,7 @@ function AppContent() {
       <Routes>
         <Route path='/' element={<HomePage />} />
         <Route path='/create' element={<CreateRetroPage />} />
+        <Route path='/my-retros' element={<MyRetrosPage />} />
         <Route path='/retro/:code' element={<RetroPage />} />
       </Routes>
       

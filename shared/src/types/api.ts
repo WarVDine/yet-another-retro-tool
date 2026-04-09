@@ -221,3 +221,22 @@ export interface VoteResponse {
   groupId?: string
   createdAt: string
 }
+
+// Facilitated retros list types
+export interface FacilitatedRetroItem {
+  id: string
+  name: string
+  currentPhase: 'setup' | 'writing' | 'grouping' | 'voting' | 'discussing'
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  participantCount: number
+  cardCount: number
+  facilitatorCode: string
+  participantCode: string
+}
+
+export interface FacilitatedRetrosResponse {
+  retros: FacilitatedRetroItem[]
+  totalCount: number
+}
