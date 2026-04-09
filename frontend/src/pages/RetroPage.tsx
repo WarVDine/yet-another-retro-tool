@@ -366,6 +366,26 @@ export function RetroPage() {
     [id, guestUser.guestId, isFacilitator, loadRoom]
   )
 
+  const handleExportRetro = useCallback(async () => {
+    if (!id || !isFacilitator) return
+
+    setIsUpdatingPhase(true) // Reuse the same loading state
+    try {
+      const result = await roomApi.exportRoom(id)
+      if (result.success) {
+        // Show success message briefly
+        setError(null)
+        // You could add a success message state if desired
+      }
+    } catch (error) {
+      console.error('Failed to export retro:', error)
+      setError('Failed to export retrospective. Please try again.')
+      setTimeout(() => setError(null), 5000) // Clear error after 5 seconds
+    } finally {
+      setIsUpdatingPhase(false)
+    }
+  }, [id, isFacilitator])
+
   const handleUpdateGroup = useCallback(
     async (groupId: string, title: string) => {
       if (!guestUser.guestId) return
@@ -790,6 +810,17 @@ export function RetroPage() {
                           disabled={isUpdatingPhase}
                         >
                           Start Discussion Phase
+                        </Button>
+                      )}
+                      {room.currentPhase === 'discussing' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportRetro}
+                          disabled={isUpdatingPhase}
+                          className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                        >
+                          {isUpdatingPhase ? 'Exporting...' : 'Export Retro'}
                         </Button>
                       )}
                     </div>
