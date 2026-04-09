@@ -177,18 +177,26 @@ Content-Type: application/json
 
 ### Authentication Middleware
 
-**Guest User Resolution:**
+**Header-Based Authentication:**
 
-- Validates guest ID is provided in request
-- Looks up internal user ID from opaque guest ID
-- Attaches resolved user information to request context
-- Handles invalid credentials with appropriate error responses
+- Guest ID provided in `Authorization: Guest <guestId>` header format
+- Validates and resolves guest ID to internal user ID
+- Attaches resolved user information to request context (`req.userId`, `req.guestId`)
+- Handles invalid credentials with appropriate 401 error responses
 
-**Authorization Pattern:**
+**Role-Based Authorization:**
 
-- Controllers call `resolveGuestUser` helper directly
-- Errors handled as 500s for simplicity (not 401s)
-- Guest ID attached to request context for downstream use
+- `requireGuestUser`: Validates authentication for all protected endpoints
+- `requireRoomParticipant`: Ensures user is a participant in the specified room
+- `requireFacilitator`: Ensures user has facilitator role in the specified room
+- Room ID resolution supports multiple sources: URL params, request body, or middleware-resolved
+
+**Response Filtering:**
+
+- Sensitive data filtered based on user role and access level
+- Facilitator codes only returned to facilitators
+- Author IDs and vote user IDs removed for anonymity
+- Participant IDs preserved for ordering and functionality
 
 **Implementation:** [`backend/src/middleware/auth.ts`](../backend/src/middleware/auth.ts)
 
@@ -306,12 +314,19 @@ Content-Type: application/json
 
 ### Authorization Pattern
 
-**Guest ID Resolution:**
+**Header-Based Authentication:**
 
-- Other API endpoints use guestId from request body to resolve internal userId
-- Controllers call `resolveGuestUser()` helper for authentication
-- Validation helpers check room participation and facilitator roles
-- Authorization failures return appropriate HTTP status codes
+- All protected API endpoints require `Authorization: Guest <guestId>` header
+- Middleware automatically resolves guest ID to internal user ID
+- Role-based middleware validates room participation and facilitator access
+- Authorization failures return appropriate HTTP status codes (401/403)
+
+**Security Enhancements:**
+
+- Facilitator room codes only exposed to facilitators
+- Card author IDs removed from responses for anonymity
+- Vote user IDs filtered out to maintain voting privacy
+- Participant IDs preserved for UI ordering and functionality
 
 ## Integration with Other Features
 

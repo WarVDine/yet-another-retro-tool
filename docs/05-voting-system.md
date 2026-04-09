@@ -120,10 +120,10 @@ Cast a vote on a card or group during the voting phase.
 ```http
 POST /api/votes
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "cardId": "card-uuid-here",
-  "guestId": "guest-1704067200000-abc123"
+  "cardId": "card-uuid-here"
 }
 ```
 
@@ -148,10 +148,10 @@ Remove one vote from a card or group during the voting phase.
 ```http
 DELETE /api/votes
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "groupId": "group-uuid-here",
-  "guestId": "guest-1704067200000-abc123"
+  "groupId": "group-uuid-here"
 }
 ```
 
@@ -169,14 +169,12 @@ Content-Type: application/json
 ```typescript
 // Vote on a card
 {
-  "cardId": "uuid",
-  "guestId": "string"
+  "cardId": "uuid"
 }
 
 // Vote on a group
 {
-  "groupId": "uuid", 
-  "guestId": "string"
+  "groupId": "uuid"
 }
 ```
 
@@ -257,6 +255,13 @@ Groups display vote buttons for the entire group and prevent individual card vot
 4. **Multiple Votes**: Users can cast multiple votes on the same target
 5. **Vote Limits**: Users cannot exceed their `maxVotesPerUser` limit
 6. **Vote Redistribution**: Users can remove votes to add them elsewhere
+
+### Privacy & Security
+
+- **User ID Anonymization**: Vote responses have `userId` field removed for privacy
+- **Header Authentication**: All vote operations require `Authorization: Guest <guestId>` header
+- **Room Participation Validation**: Middleware ensures users can only vote in rooms they've joined
+- **Phase Enforcement**: Voting middleware validates room is in 'voting' phase before allowing operations
 
 ### Vote Limit Enforcement
 

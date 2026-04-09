@@ -96,12 +96,12 @@ CREATE TYPE participantRoleEnum AS ENUM ('facilitator', 'participant');
 ```http
 POST /api/rooms
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
   "name": "Sprint 23 Retrospective",
   "description": "Q4 sprint retrospective",
-  "template": "startStopContinue",
-  "guestId": "guest-1704067200000-abc123"
+  "template": "startStopContinue"
 }
 ```
 
@@ -135,10 +135,10 @@ Content-Type: application/json
 ```http
 POST /api/rooms/join
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "code": "ABC12345",
-  "guestId": "guest-1704067200000-abc123"
+  "code": "ABC12345"
 }
 ```
 
@@ -238,10 +238,10 @@ GET /api/rooms/:id?guestId=guest-1704067200000-abc123
 ```http
 PATCH /api/rooms/:id/phase
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "phase": "grouping",
-  "guestId": "guest-1704067200000-abc123"
+  "phase": "grouping"
 }
 ```
 
@@ -276,6 +276,14 @@ Content-Type: application/json
 - Determines participant role based on code type (facilitator vs participant)
 - Prevents duplicate participation by same user
 - Creates participant record with appropriate role assignment
+
+**Response Filtering:**
+
+- **Facilitator Code**: Only included in responses for users with facilitator role
+- **Participant Code**: Always included for room access
+- **Participant IDs**: Preserved in responses for UI ordering and functionality
+- **Card Author IDs**: Removed from card responses for anonymity
+- **Vote User IDs**: Filtered out to maintain voting privacy
 
 **Room Access:**
 

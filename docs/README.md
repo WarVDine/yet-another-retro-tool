@@ -95,14 +95,15 @@ flowchart TB
 ## Data Flow Summary
 
 1. **Authentication**: Guest users are created server-side, `guestId` stored
-   in localStorage
+   in localStorage and sent via `Authorization` header
 2. **Room Access**: Join codes map to room participation with role assignment
 3. **Card Operations**: Ownership and phase-based permissions control CRUD
-   operations
+   operations with author ID filtering for anonymity
 4. **Real-time Updates**: Polling-based synchronization with conflict
-   resolution
+   resolution and role-based response filtering
 5. **Grouping**: Facilitator-only drag-and-drop with position management
-6. **Voting**: Phase-restricted voting with limits and real-time tracking
+6. **Voting**: Phase-restricted voting with limits, real-time tracking, and
+   user ID anonymization
 7. **Discussion**: Anonymous vote result display with ranking and highlighting
 
 ## Technology Stack
@@ -150,8 +151,10 @@ flowchart TB
 
 ### Security Model
 
-- **No traditional auth**: Opaque server-issued guest IDs
-- **Role-based access**: Facilitator vs participant permissions
+- **Header-based authentication**: `Authorization: Guest <guestId>` header format
+- **Role-based access control**: Middleware-enforced facilitator vs participant permissions
+- **Response filtering**: Sensitive data filtered based on user role and access level
+- **Data anonymization**: Author IDs and vote user IDs removed for privacy
 - **Client-side validation**: UI restrictions backed by server enforcement
 
 ## Troubleshooting
@@ -179,6 +182,28 @@ Each feature document includes:
 - Error scenario handling
 - Authentication requirements
 
+## Security Enhancements
+
+### Authentication & Authorization
+
+- **Header-Based Authentication**: All protected endpoints require `Authorization: Guest <guestId>` header
+- **Role-Based Middleware**: Automatic validation of user roles (facilitator vs participant)
+- **Room Access Control**: Middleware ensures users can only access rooms they've joined
+
+### Response Filtering & Privacy
+
+- **Facilitator Code Protection**: Only exposed to users with facilitator role
+- **Author ID Anonymization**: Card author IDs removed from responses for privacy
+- **Vote User ID Filtering**: User IDs removed from vote responses to maintain anonymity
+- **Participant ID Preservation**: User IDs kept in participant lists for ordering and functionality
+
+### Middleware Architecture
+
+- `requireGuestUser`: Validates authentication for all protected endpoints
+- `requireRoomParticipant`: Ensures user is a participant in the specified room
+- `requireFacilitator`: Ensures user has facilitator role in the specified room
+- Dynamic room ID resolution from URL params, request body, or middleware context
+
 ## Contributing
 
 When adding new features:
@@ -188,3 +213,4 @@ When adding new features:
 3. Document API contracts in shared types
 4. Add error handling scenarios
 5. Update this main README if needed
+6. Follow security patterns for authentication and response filtering

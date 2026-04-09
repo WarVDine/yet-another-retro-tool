@@ -70,11 +70,11 @@ sequenceDiagram
 ```http
 POST /api/cards
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
   "columnId": "column-uuid",
-  "content": "We should improve our testing process",
-  "guestId": "guest-1704067200000-abc123"
+  "content": "We should improve our testing process"
 }
 ```
 
@@ -106,10 +106,10 @@ Content-Type: application/json
 ```http
 PATCH /api/cards/:id
 Content-Type: application/json
+Authorization: Guest guest-1704067200000-abc123
 
 {
-  "content": "We should improve our automated testing process",
-  "guestId": "guest-1704067200000-abc123"
+  "content": "We should improve our automated testing process"
 }
 ```
 
@@ -140,11 +140,7 @@ Content-Type: application/json
 
 ```http
 DELETE /api/cards/:id
-Content-Type: application/json
-
-{
-  "guestId": "guest-1704067200000-abc123"
-}
+Authorization: Guest guest-1704067200000-abc123
 ```
 
 **Response (200):**
