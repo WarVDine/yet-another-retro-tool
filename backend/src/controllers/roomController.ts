@@ -25,6 +25,7 @@ import { CustomResponse } from '@/types/index'
 import { generateCode } from '@/utils/codeGenerator'
 import { filterRoomResponseByRole, createMinimalRoomResponse, getUserRoleInRoom } from '@/utils/responseFilter'
 import { generateRetroExportMarkdown, generateExportFilename, ExportData } from '@/templates/retroExport'
+import { getVotesForRoom } from '@/utils/voteUtils'
 
 export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<RoomResponse>) => {
   const { name, description, template }: CreateRoomRequest = req.body
@@ -215,27 +216,8 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
     }
 
     if (room.currentPhase === 'voting' || room.currentPhase === 'discussing') {
-      // Get all votes for cards and groups in this room
-      const allVotes = await db.query.likes.findMany({
-        with: {
-          card: {
-            with: {
-              column: true,
-            },
-          },
-          group: {
-            with: {
-              column: true,
-            },
-          },
-        },
-      })
-
-      // Filter votes that belong to this room
-      const roomVotes = allVotes.filter((vote) => {
-        const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
-        return roomIdFromVote === room.id
-      })
+      // Get votes for this room efficiently using proper SQL joins
+      const roomVotes = await getVotesForRoom(room.id)
 
       // Build vote counts for cards
       const cardVoteCounts = new Map<string, number>()
@@ -545,27 +527,8 @@ export const getRoomByCode = asyncHandler(async (req: Request, res: CustomRespon
     }
 
     if (room.currentPhase === 'voting' || room.currentPhase === 'discussing') {
-      // Get all votes for cards and groups in this room
-      const allVotes = await db.query.likes.findMany({
-        with: {
-          card: {
-            with: {
-              column: true,
-            },
-          },
-          group: {
-            with: {
-              column: true,
-            },
-          },
-        },
-      })
-
-      // Filter votes that belong to this room
-      const roomVotes = allVotes.filter((vote) => {
-        const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
-        return roomIdFromVote === room.id
-      })
+      // Get votes for this room efficiently using proper SQL joins
+      const roomVotes = await getVotesForRoom(room.id)
 
       // Build vote counts for cards
       const cardVoteCounts = new Map<string, number>()
@@ -862,26 +825,7 @@ export const exportRoom = asyncHandler(async (req: Request, res: CustomResponse<
     }
 
     // Always load vote data for export (to show vote counts regardless of phase)
-    const allVotes = await db.query.likes.findMany({
-      with: {
-        card: {
-          with: {
-            column: true,
-          },
-        },
-        group: {
-          with: {
-            column: true,
-          },
-        },
-      },
-    })
-
-    // Filter votes that belong to this room
-    const roomVotes = allVotes.filter((vote) => {
-      const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
-      return roomIdFromVote === room.id
-    })
+    const roomVotes = await getVotesForRoom(room.id)
 
     // Build vote counts for cards and groups
     const cardVoteCounts = new Map<string, number>()
