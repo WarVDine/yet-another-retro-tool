@@ -4,8 +4,6 @@ import { Request } from 'express'
 import {
   CreateRoomRequest,
   RoomResponse,
-  JoinRoomRequest,
-  JoinRoomResponse,
   DetailedRoomResponse,
   UpdateRoomPhaseRequest,
   RETRO_TEMPLATES,
@@ -142,75 +140,6 @@ export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<
   }
 })
 
-export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<JoinRoomResponse>) => {
-  const { code }: JoinRoomRequest = req.body
-
-  // Validation
-  if (!code) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Code is required',
-    })
-    return
-  }
-
-  try {
-    // Find room by either facilitator or participant code
-    const room = await db.query.rooms.findFirst({
-      where: or(eq(rooms.facilitatorCode, code), eq(rooms.participantCode, code)),
-    })
-
-    if (!room || !room.isActive) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'Room not found or inactive',
-      })
-      return
-    }
-
-    // userId is guaranteed to be available from requireGuestUser middleware
-    const userId = req.userId!
-
-    // Determine role based on which code was used
-    const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
-
-    // Handle user lookup and room participation in transaction
-    // Add as room participant - if the user is already a participant, update the role
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(roomParticipants)
-        .values({
-          roomId: room.id,
-          userId: userId,
-          role,
-        })
-        .onConflictDoUpdate({
-          target: [roomParticipants.roomId, roomParticipants.userId],
-          set: {
-            role,
-          },
-        })
-    })
-
-    res.json({
-      success: true,
-      data: {
-        roomId: room.id,
-        role,
-      },
-      message: 'Successfully joined room',
-    })
-  } catch (error) {
-    console.error('Error joining room:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to join room',
-    })
-  }
-})
 
 export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
   const { id } = req.params
@@ -458,6 +387,336 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
     })
   } catch (error) {
     console.error('Error loading room:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to load room',
+    })
+  }
+})
+
+export const validateRoomCode = asyncHandler(async (req: Request, res: CustomResponse) => {
+  const { code } = req.params
+
+  // Validation
+  if (!code) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Code is required',
+    })
+    return
+  }
+
+  try {
+    // Check if room exists with this participant code
+    const room = await db.query.rooms.findFirst({
+      where: and(
+        eq(rooms.participantCode, code),
+        eq(rooms.isActive, true)
+      ),
+      columns: {
+        id: true,
+        name: true,
+        currentPhase: true
+      }
+    })
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Room not found or inactive'
+      })
+      return
+    }
+
+    res.json({
+      success: true,
+      data: {
+        exists: true,
+        roomName: room.name,
+        currentPhase: room.currentPhase
+      },
+      message: 'Room found'
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to validate room code'
+    })
+  }
+})
+
+export const getRoomByCode = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
+  const { code } = req.params
+  const currentUserId = req.userId!
+
+  if (!code) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Room code is required',
+    })
+    return
+  }
+
+  try {
+    // Find room by participant code (not facilitator code for security)
+    let roomForVerification = await db.query.rooms.findFirst({
+      where: eq(rooms.participantCode, code),
+    })
+
+    if (!roomForVerification || !roomForVerification.isActive) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Room not found or inactive',
+      })
+      return
+    }
+
+    // Check if user is already a participant
+    const existingParticipant = await db.query.roomParticipants.findFirst({
+      where: and(eq(roomParticipants.roomId, roomForVerification.id), eq(roomParticipants.userId, currentUserId)),
+    })
+
+    // Auto-join as participant if not already joined
+    if (!existingParticipant) {
+      await db.insert(roomParticipants).values({
+        roomId: roomForVerification.id,
+        userId: currentUserId,
+        role: 'participant',
+        joinedAt: new Date(),
+      })
+    }
+
+    // Reload room data to include the new participant
+    const room = await db.query.rooms.findFirst({
+      where: eq(rooms.id, roomForVerification.id),
+      with: {
+        columns: {
+          orderBy: [columns.sortOrder],
+          with: {
+            cards: {
+              orderBy: [cards.sortOrder],
+              with: {
+                author: true,
+              },
+            },
+            cardGroups: {
+              orderBy: [cardGroups.sortOrder],
+              with: {
+                cardMemberships: {
+                  with: {
+                    card: {
+                      with: {
+                        author: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        participants: {
+          with: {
+            user: true,
+          },
+        },
+      },
+    })
+
+    if (!room) {
+      throw new Error('Room not found after joining')
+    }
+
+    // Load vote information based on current phase (same logic as getRoomById)
+    let voteData: {
+      cardVotes: Map<string, { total: number; userVotes: number }>
+      groupVotes: Map<string, { total: number; userVotes: number }>
+      participantVotes: Map<string, { used: number; remaining: number }>
+    } = {
+      cardVotes: new Map(),
+      groupVotes: new Map(),
+      participantVotes: new Map(),
+    }
+
+    if (room.currentPhase === 'voting' || room.currentPhase === 'discussing') {
+      // Get all votes for cards and groups in this room
+      const allVotes = await db.query.likes.findMany({
+        with: {
+          card: {
+            with: {
+              column: true,
+            },
+          },
+          group: {
+            with: {
+              column: true,
+            },
+          },
+        },
+      })
+
+      // Filter votes that belong to this room
+      const roomVotes = allVotes.filter((vote) => {
+        const roomIdFromVote = vote.card?.column?.roomId || vote.group?.column?.roomId
+        return roomIdFromVote === room.id
+      })
+
+      // Build vote counts for cards
+      const cardVoteCounts = new Map<string, number>()
+      const userCardVotes = new Map<string, number>()
+
+      // Build vote counts for groups
+      const groupVoteCounts = new Map<string, number>()
+      const userGroupVotes = new Map<string, number>()
+
+      roomVotes.forEach((vote) => {
+        if (vote.cardId) {
+          cardVoteCounts.set(vote.cardId, (cardVoteCounts.get(vote.cardId) || 0) + 1)
+          if (vote.userId === currentUserId) {
+            userCardVotes.set(vote.cardId, (userCardVotes.get(vote.cardId) || 0) + 1)
+          }
+        }
+
+        if (vote.groupId) {
+          groupVoteCounts.set(vote.groupId, (groupVoteCounts.get(vote.groupId) || 0) + 1)
+          if (vote.userId === currentUserId) {
+            userGroupVotes.set(vote.groupId, (userGroupVotes.get(vote.groupId) || 0) + 1)
+          }
+        }
+      })
+
+      // Build participant vote summaries
+      if (room.currentPhase === 'voting') {
+        const participantVoteCounts = new Map<string, number>()
+        roomVotes.forEach((vote) => {
+          participantVoteCounts.set(vote.userId, (participantVoteCounts.get(vote.userId) || 0) + 1)
+        })
+
+        room.participants.forEach((participant) => {
+          const used = participantVoteCounts.get(participant.user.id) || 0
+          const remaining = room.maxVotesPerUser - used
+          voteData.participantVotes.set(participant.user.id, { used, remaining })
+        })
+      }
+
+      // Store vote data
+      cardVoteCounts.forEach((total, cardId) => {
+        voteData.cardVotes.set(cardId, {
+          total,
+          userVotes: userCardVotes.get(cardId) || 0,
+        })
+      })
+
+      groupVoteCounts.forEach((total, groupId) => {
+        voteData.groupVotes.set(groupId, {
+          total,
+          userVotes: userGroupVotes.get(groupId) || 0,
+        })
+      })
+    }
+
+    // Build the full room response (same logic as getRoomById)
+    const fullRoomResponse: DetailedRoomResponse = {
+      id: room.id,
+      name: room.name,
+      description: room.description || undefined,
+      facilitatorCode: room.facilitatorCode,
+      participantCode: room.participantCode,
+      currentPhase: room.currentPhase,
+      maxVotesPerUser: room.maxVotesPerUser,
+      isActive: room.isActive,
+      columns: room.columns.map((col) => ({
+        id: col.id,
+        title: col.title,
+        description: col.description || undefined,
+        color: col.color,
+        sortOrder: col.sortOrder,
+        cards: col.cards.map((card) => {
+          const cardVoteInfo = voteData.cardVotes.get(card.id)
+          return {
+            id: card.id,
+            content: card.content,
+            isAnonymous: card.isAnonymous,
+            authorName: card.isAnonymous ? undefined : card.author.displayName,
+            sortOrder: card.sortOrder,
+            createdAt: card.createdAt.toISOString(),
+            // Add CardDetailResponse specific fields
+            columnId: card.columnId,
+            updatedAt: card.updatedAt.toISOString(),
+            // Add ownership flag for frontend (only if currentUserId is available)
+            ...(currentUserId && { isOwner: currentUserId === card.authorId }),
+            // Add vote information based on phase
+            ...(room.currentPhase === 'discussing' && {
+              voteCount: cardVoteInfo?.total || 0,
+            }),
+            ...(room.currentPhase === 'voting' && cardVoteInfo && { userVotes: cardVoteInfo.userVotes }),
+          }
+        }),
+        cardGroups: col.cardGroups.map((group) => {
+          const groupVoteInfo = voteData.groupVotes.get(group.id)
+          return {
+            id: group.id,
+            columnId: group.columnId,
+            title: group.title,
+            description: group.description || null,
+            sortOrder: group.sortOrder,
+            createdAt: group.createdAt.toISOString(),
+            updatedAt: group.updatedAt.toISOString(),
+            // Add vote information based on phase
+            ...(room.currentPhase === 'discussing' && {
+              voteCount: groupVoteInfo?.total || 0,
+            }),
+            ...(room.currentPhase === 'voting' && groupVoteInfo && { userVotes: groupVoteInfo.userVotes }),
+            cards: group.cardMemberships.map((membership) => ({
+              id: membership.card.id,
+              columnId: membership.card.columnId,
+              content: membership.card.content,
+              isAnonymous: membership.card.isAnonymous,
+              sortOrder: membership.card.sortOrder,
+              createdAt: membership.card.createdAt.toISOString(),
+              updatedAt: membership.card.updatedAt.toISOString(),
+              // Add ownership flag for frontend (only if currentUserId is available)
+              ...(currentUserId && { isOwner: currentUserId === membership.card.authorId }),
+              // Cards in groups don't show individual vote counts
+            })),
+          }
+        }),
+      })),
+      participants: room.participants.map((p) => {
+        const participantVoteInfo = voteData.participantVotes.get(p.user.id)
+        return {
+          id: p.user.id,
+          displayName: p.user.displayName,
+          role: p.role,
+          joinedAt: p.joinedAt.toISOString(),
+          // Add vote information during voting phase
+          ...(room.currentPhase === 'voting' &&
+            participantVoteInfo && {
+              votesUsed: participantVoteInfo.used,
+              votesRemaining: participantVoteInfo.remaining,
+            }),
+        }
+      }),
+      createdAt: room.createdAt.toISOString(),
+    }
+
+    // Determine user role and apply filtering
+    const userRole = getUserRoleInRoom(currentUserId, fullRoomResponse.participants)
+    const filteredResponse = filterRoomResponseByRole(fullRoomResponse, userRole)
+
+    res.json({
+      success: true,
+      data: filteredResponse,
+      message: 'Room loaded successfully',
+    })
+  } catch (error) {
+    console.error('Error loading room by code:', error)
     res.status(500).json({
       success: false,
       error: 'Internal Server Error',

@@ -8,6 +8,45 @@ import { Input } from '@/components/ui/input'
 import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi } from '@/utils/api'
 
+// Utility function to extract room code from URL or return the input as-is
+// Examples:
+// - "ABC123" → "ABC123" (plain code)
+// - "http://localhost:3000/retro/ABC123" → "ABC123" (full URL)
+// - "https://mysite.com/retro/XYZ789" → "XYZ789" (full URL)
+// - "/retro/DEF456" → "DEF456" (relative path)
+// - "invalid-input" → "invalid-input" (non-matching input)
+const extractRoomCodeFromInput = (input: string): string => {
+  const trimmedInput = input.trim()
+  
+  // If it doesn't look like a URL, return as-is
+  if (!trimmedInput.includes('/')) {
+    return trimmedInput
+  }
+  
+  try {
+    // Try to parse as URL
+    const url = new URL(trimmedInput)
+    
+    // Check if it's a retro URL pattern: /retro/{code}
+    const pathMatch = url.pathname.match(/\/retro\/([^\/\?#]+)/)
+    if (pathMatch && pathMatch[1]) {
+      return pathMatch[1]
+    }
+    
+    // If no match, return original input
+    return trimmedInput
+  } catch {
+    // If URL parsing fails, check for relative path pattern
+    const pathMatch = trimmedInput.match(/\/retro\/([^\/\?#]+)/)
+    if (pathMatch && pathMatch[1]) {
+      return pathMatch[1]
+    }
+    
+    // Return original input if no patterns match
+    return trimmedInput
+  }
+}
+
 export function HomePage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -50,13 +89,18 @@ export function HomePage() {
     setJoinError(null)
 
     try {
-      const result = await roomApi.joinRoom({
-        code: sessionCode.trim(),
-      })
-
-      navigate(`/retro/${result.roomId}`)
+      // Validate room exists before navigating
+      await roomApi.validateRoomCode(sessionCode.trim())
+      
+      // If validation succeeds, navigate to room
+      navigate(`/retro/${sessionCode.trim()}`)
     } catch (error) {
-      setJoinError(error instanceof Error ? error.message : 'Failed to join room')
+      const errorStatus = (error as any)?.status
+      if (errorStatus === 404) {
+        setJoinError('Room not found. Please check your code and try again.')
+      } else {
+        setJoinError('Failed to join room. Please try again.')
+      }
     } finally {
       setIsJoining(false)
     }
@@ -145,14 +189,17 @@ export function HomePage() {
                   </label>
                   <Input
                     id="session-code"
-                    placeholder="Enter session code"
+                    placeholder="Enter session code or paste room URL"
                     value={sessionCode}
-                    onChange={(e) => setSessionCode(e.target.value)}
+                    onChange={(e) => {
+                      const extractedCode = extractRoomCodeFromInput(e.target.value)
+                      setSessionCode(extractedCode)
+                    }}
                     disabled={isJoining}
                     aria-describedby="session-code-help"
                   />
                   <p id="session-code-help" className="text-xs text-gray-500 mt-1">
-                    The code provided by the facilitator
+                    Enter the code provided by the facilitator, or paste the full room URL
                   </p>
                 </div>
 

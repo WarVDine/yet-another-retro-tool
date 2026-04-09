@@ -4,7 +4,6 @@ import {
   CardDetailResponse,
   ParticipantResponse,
   VoteResponse,
-  JoinRoomResponse,
 } from '@yet-another-retro-tool/shared'
 
 /**
@@ -58,15 +57,6 @@ export const filterCardResponse = (card: any): CardDetailResponse => {
 export const filterVoteResponse = (vote: any): VoteResponse => {
   const { userId, ...filteredVote } = vote
   return filteredVote
-}
-
-/**
- * Filter join room response to remove participant ID
- * Returns minimal response needed for navigation
- */
-export const filterJoinRoomResponse = (response: any): JoinRoomResponse => {
-  const { participantId, ...filteredResponse } = response
-  return filteredResponse
 }
 
 /**

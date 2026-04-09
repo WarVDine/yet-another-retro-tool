@@ -4,7 +4,8 @@ import { roomApi } from '@/utils/api'
 import { DetailedRoomResponse } from '@yet-another-retro-tool/shared'
 
 interface UseRoomPollingOptions {
-  roomId: string | null
+  roomId?: string | null
+  roomCode?: string | null
   enabled: boolean
   interval?: number // milliseconds, default 5000
   onUpdate?: (room: DetailedRoomResponse) => void
@@ -20,6 +21,7 @@ interface UseRoomPollingReturn {
 
 export function useRoomPolling({
   roomId,
+  roomCode,
   enabled,
   interval = 5000,
   onUpdate,
@@ -43,11 +45,13 @@ export function useRoomPolling({
   }, [])
 
   const fetchRoomData = useCallback(async (): Promise<DetailedRoomResponse | null> => {
-    if (!roomId) return null
+    if (!roomId && !roomCode) return null
 
     try {
       setError(null)
-      const roomData = await roomApi.getRoomById(roomId)
+      const roomData = roomCode 
+        ? await roomApi.getRoomByCode(roomCode)
+        : await roomApi.getRoomById(roomId!)
       console.log('roomData', roomData)
       setLastSyncTime(new Date())
       return roomData
@@ -58,10 +62,10 @@ export function useRoomPolling({
       onError?.(err instanceof Error ? err : new Error(errorMessage))
       return null
     }
-  }, [roomId, onError])
+  }, [roomId, roomCode, onError])
 
   const manualRefresh = useCallback(async () => {
-    if (!enabled || !roomId) return
+    if (!enabled || (!roomId && !roomCode)) return
 
     setIsPolling(true)
     try {
@@ -72,12 +76,12 @@ export function useRoomPolling({
     } finally {
       setIsPolling(false)
     }
-  }, [enabled, roomId, fetchRoomData, onUpdate])
+  }, [enabled, roomId, roomCode, fetchRoomData, onUpdate])
 
   const pollRoom = useCallback(async () => {
-    console.log('pollRoom', { isVisible: isVisibleRef.current, enabled, roomId })
-    // Don't poll if tab is not visible, not enabled, or no room ID
-    if (!isVisibleRef.current || !enabled || !roomId) {
+    console.log('pollRoom', { isVisible: isVisibleRef.current, enabled, roomId, roomCode })
+    // Don't poll if tab is not visible, not enabled, or no room identifier
+    if (!isVisibleRef.current || !enabled || (!roomId && !roomCode)) {
       return
     }
 
@@ -90,11 +94,11 @@ export function useRoomPolling({
     } finally {
       setIsPolling(false)
     }
-  }, [enabled, roomId, fetchRoomData, onUpdate])
+  }, [enabled, roomId, roomCode, fetchRoomData, onUpdate])
 
   // Set up polling interval
   useEffect(() => {
-    if (!enabled || !roomId) {
+    if (!enabled || (!roomId && !roomCode)) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
@@ -111,7 +115,7 @@ export function useRoomPolling({
         intervalRef.current = null
       }
     }
-  }, [enabled, roomId, interval, pollRoom])
+  }, [enabled, roomId, roomCode, interval, pollRoom])
 
   return {
     isPolling,
