@@ -341,8 +341,9 @@ Authorization: Guest guest-1704067200000-abc123
 
 **User Experience:**
 
-- Clean interface with join code input field
+- Clean interface with join code input field that accepts both codes and full URLs
 - Supports both 6-character (participant) and 8-character (facilitator) codes
+- Automatically extracts room codes from pasted URLs (e.g., `http://localhost:3000/retro/ABC123` → `ABC123`)
 - Displays helpful error messages for invalid codes or access issues
 - Handles URL parameter errors from room access redirects
 
