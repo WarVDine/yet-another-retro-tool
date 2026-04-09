@@ -20,6 +20,17 @@ export const getGuestUser = asyncHandler(
       return
     }
 
+    // Ownership validation - user can only access their own profile
+    const authenticatedGuestId = req.guestId // From requireGuestUser middleware
+    if (guestId !== authenticatedGuestId) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'You can only access your own profile'
+      })
+      return
+    }
+
     try {
       const user = await db.query.users.findFirst({
         where: eq(users.guestId, guestId)
@@ -125,6 +136,17 @@ export const updateGuestUser = asyncHandler(
         success: false,
         error: 'Validation Error',
         message: 'Display name is required'
+      })
+      return
+    }
+
+    // Ownership validation - user can only update their own profile
+    const authenticatedGuestId = req.guestId // From requireGuestUser middleware
+    if (guestId !== authenticatedGuestId) {
+      res.status(403).json({
+        success: false,
+        error: 'Authorization Error',
+        message: 'You can only access your own profile'
       })
       return
     }

@@ -9,18 +9,19 @@ import { useGuestUser } from '@/contexts/GuestUserContext'
 import { roomApi } from '@/utils/api'
 
 // Utility function to extract room code from URL or return the input as-is
+// All codes are normalized to uppercase for case-insensitive joining
 // Examples:
-// - "ABC123" → "ABC123" (plain code)
-// - "http://localhost:3000/retro/ABC123" → "ABC123" (full URL)
-// - "https://mysite.com/retro/XYZ789" → "XYZ789" (full URL)
-// - "/retro/DEF456" → "DEF456" (relative path)
-// - "invalid-input" → "invalid-input" (non-matching input)
+// - "abc123" → "ABC123" (plain code, normalized to uppercase)
+// - "http://localhost:3000/retro/abc123" → "ABC123" (full URL, normalized to uppercase)
+// - "https://mysite.com/retro/xyz789" → "XYZ789" (full URL, normalized to uppercase)
+// - "/retro/def456" → "DEF456" (relative path, normalized to uppercase)
+// - "invalid-input" → "INVALID-INPUT" (non-matching input, normalized to uppercase)
 const extractRoomCodeFromInput = (input: string): string => {
   const trimmedInput = input.trim()
   
-  // If it doesn't look like a URL, return as-is
+  // If it doesn't look like a URL, normalize to uppercase and return
   if (!trimmedInput.includes('/')) {
-    return trimmedInput
+    return trimmedInput.toUpperCase()
   }
   
   try {
@@ -30,20 +31,20 @@ const extractRoomCodeFromInput = (input: string): string => {
     // Check if it's a retro URL pattern: /retro/{code}
     const pathMatch = url.pathname.match(/\/retro\/([^\/\?#]+)/)
     if (pathMatch && pathMatch[1]) {
-      return pathMatch[1]
+      return pathMatch[1].toUpperCase()
     }
     
-    // If no match, return original input
-    return trimmedInput
+    // If no match, normalize to uppercase and return original input
+    return trimmedInput.toUpperCase()
   } catch {
     // If URL parsing fails, check for relative path pattern
     const pathMatch = trimmedInput.match(/\/retro\/([^\/\?#]+)/)
     if (pathMatch && pathMatch[1]) {
-      return pathMatch[1]
+      return pathMatch[1].toUpperCase()
     }
     
-    // Return original input if no patterns match
-    return trimmedInput
+    // Return original input if no patterns match, normalized to uppercase
+    return trimmedInput.toUpperCase()
   }
 }
 
@@ -89,11 +90,14 @@ export function HomePage() {
     setJoinError(null)
 
     try {
+      // Normalize code to uppercase (codes are stored in uppercase)
+      const normalizedCode = sessionCode.trim().toUpperCase()
+      
       // Validate room exists before navigating
-      await roomApi.validateRoomCode(sessionCode.trim())
+      await roomApi.validateRoomCode(normalizedCode)
       
       // If validation succeeds, navigate to room
-      navigate(`/retro/${sessionCode.trim()}`)
+      navigate(`/retro/${normalizedCode}`)
     } catch (error) {
       const errorStatus = (error as any)?.status
       if (errorStatus === 404) {
