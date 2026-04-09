@@ -31,8 +31,6 @@ export type {
   CreateRoomRequest,
   RoomResponse,
   ColumnResponse,
-  JoinRoomRequest,
-  JoinRoomResponse,
   DetailedRoomResponse,
   DetailedColumnResponse,
   CardResponse,

@@ -61,13 +61,10 @@ export interface ColumnResponse {
 }
 
 // Room joining types
-export interface JoinRoomRequest {
-  code: string
-}
-
-export interface JoinRoomResponse {
-  roomId: string
-  role: 'facilitator' | 'participant'
+export interface ValidateRoomCodeResponse {
+  exists: boolean
+  roomName: string
+  currentPhase: string
 }
 
 // Guest user management types

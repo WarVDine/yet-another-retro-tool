@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useGuestUser } from '@/contexts/GuestUserContext'
+import { roomApi } from '@/utils/api'
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -49,10 +50,18 @@ export function HomePage() {
     setJoinError(null)
 
     try {
-      // Navigate directly to the code-based URL - auto-join will happen there
+      // Validate room exists before navigating
+      await roomApi.validateRoomCode(sessionCode.trim())
+      
+      // If validation succeeds, navigate to room
       navigate(`/retro/${sessionCode.trim()}`)
     } catch (error) {
-      setJoinError(error instanceof Error ? error.message : 'Failed to join room')
+      const errorStatus = (error as any)?.status
+      if (errorStatus === 404) {
+        setJoinError('Room not found. Please check your code and try again.')
+      } else {
+        setJoinError('Failed to join room. Please try again.')
+      }
     } finally {
       setIsJoining(false)
     }

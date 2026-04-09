@@ -3,10 +3,9 @@ import {
   ApiError,
   CreateRoomRequest,
   RoomResponse,
-  JoinRoomRequest,
-  JoinRoomResponse,
   DetailedRoomResponse,
   UpdateRoomPhaseRequest,
+  ValidateRoomCodeResponse,
   GuestUserResponse,
   CreateCardRequest,
   UpdateCardRequest,
@@ -127,8 +126,8 @@ export const roomApi = {
     return apiClient.post<RoomResponse>('/rooms', roomData)
   },
 
-  joinRoom: async (joinData: JoinRoomRequest): Promise<JoinRoomResponse> => {
-    return apiClient.post<JoinRoomResponse>('/rooms/join', joinData)
+  validateRoomCode: async (code: string): Promise<ValidateRoomCodeResponse> => {
+    return apiClient.get<ValidateRoomCodeResponse>(`/rooms/validate/${code}`)
   },
 
   getRoomById: async (roomId: string): Promise<DetailedRoomResponse> => {

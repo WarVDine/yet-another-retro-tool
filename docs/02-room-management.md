@@ -13,16 +13,16 @@ flowchart TB
         C3[POST /api/rooms with guestId]
         C4[Generate facilitator/participant codes]
         C5[Create room & add user as facilitator]
-        C6[Navigate to /retro/:roomId]
+        C6[Navigate to /retro/:participantCode]
     end
     
     subgraph Joining [Room Joining Flow]
         J1[User enters join code]
-        J2[POST /api/rooms/join]
-        J3[Find room by code]
-        J4[Determine role from code type]
-        J5[Upsert room_participants]
-        J6[Navigate to /retro/:roomId]
+        J2[GET /api/rooms/validate/:code]
+        J3[Validate room exists]
+        J4[Navigate to /retro/:code]
+        J5[GET /api/rooms/by-code/:code]
+        J6[Auto-join as participant]
     end
     
     subgraph Access [Room Access Control]
@@ -130,16 +130,11 @@ Authorization: Guest guest-1704067200000-abc123
 }
 ```
 
-#### Join Room
+#### Validate Room Code
 
 ```http
-POST /api/rooms/join
-Content-Type: application/json
+GET /api/rooms/validate/:code
 Authorization: Guest guest-1704067200000-abc123
-
-{
-  "code": "ABC12345"
-}
 ```
 
 **Response (200):**
@@ -148,12 +143,32 @@ Authorization: Guest guest-1704067200000-abc123
 {
   "success": true,
   "data": {
-    "roomId": "room-uuid",
-    "role": "facilitator",
-    "participantId": "user-uuid"
+    "exists": true,
+    "roomName": "Sprint 23 Retrospective",
+    "currentPhase": "discussing"
   }
 }
 ```
+
+**Response (404):**
+
+```json
+{
+  "success": false,
+  "error": "Not Found",
+  "message": "Room not found or inactive"
+}
+```
+
+#### Get Room by Code (with Auto-Join)
+
+```http
+GET /api/rooms/by-code/:code
+Authorization: Guest guest-1704067200000-abc123
+```
+
+**Response (200):** Same as "Get Room Details" below -
+returns full room data and automatically adds user as participant if not already joined.
 
 #### Get Room Details
 
@@ -333,10 +348,11 @@ Authorization: Guest guest-1704067200000-abc123
 
 **Business Logic:**
 
-- Validates guest credentials before attempting join
+- Validates guest credentials before attempting validation
 - Normalizes join code format (uppercase) before submission
-- Determines user role based on code type used
-- Redirects to room upon successful join
+- Validates room exists before navigation to prevent invalid page loads
+- Navigates to code-based URL where auto-join occurs as participant
+- Only participant codes are supported for URL-based access
 
 ### Room Access and Loading
 
@@ -469,17 +485,19 @@ Authorization: Guest guest-1704067200000-abc123
 - Verify template selection is valid option
 - Ensure room name is provided and non-empty
 
-**Cannot join room with valid code**
+**Cannot access room with valid code**
 
 - Confirm guest user profile exists and is complete
-- Check if code was entered correctly (case-insensitive)
+- Check if participant code was entered correctly (case-insensitive)
 - Verify room still exists and is active
+- Note: Only participant codes work for URL-based access
 
-**Room access denied**
+**Room validation fails**
 
-- Ensure user previously joined room with valid code
-- Check if room was deleted or marked inactive
-- Verify guest ID hasn't changed or been cleared
+- Ensure room exists and is active
+- Check if participant code was entered correctly
+- Verify network connectivity for validation request
+- Try refreshing the page if validation seems stuck
 
 **Phase transition not working**
 

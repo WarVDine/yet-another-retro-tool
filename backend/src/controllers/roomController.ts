@@ -4,8 +4,6 @@ import { Request } from 'express'
 import {
   CreateRoomRequest,
   RoomResponse,
-  JoinRoomRequest,
-  JoinRoomResponse,
   DetailedRoomResponse,
   UpdateRoomPhaseRequest,
   RETRO_TEMPLATES,
@@ -142,75 +140,6 @@ export const createRoom = asyncHandler(async (req: Request, res: CustomResponse<
   }
 })
 
-export const joinRoom = asyncHandler(async (req: Request, res: CustomResponse<JoinRoomResponse>) => {
-  const { code }: JoinRoomRequest = req.body
-
-  // Validation
-  if (!code) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation Error',
-      message: 'Code is required',
-    })
-    return
-  }
-
-  try {
-    // Find room by either facilitator or participant code
-    const room = await db.query.rooms.findFirst({
-      where: or(eq(rooms.facilitatorCode, code), eq(rooms.participantCode, code)),
-    })
-
-    if (!room || !room.isActive) {
-      res.status(404).json({
-        success: false,
-        error: 'Not Found',
-        message: 'Room not found or inactive',
-      })
-      return
-    }
-
-    // userId is guaranteed to be available from requireGuestUser middleware
-    const userId = req.userId!
-
-    // Determine role based on which code was used
-    const role = room.facilitatorCode === code ? 'facilitator' : 'participant'
-
-    // Handle user lookup and room participation in transaction
-    // Add as room participant - if the user is already a participant, update the role
-    await db.transaction(async (tx) => {
-      await tx
-        .insert(roomParticipants)
-        .values({
-          roomId: room.id,
-          userId: userId,
-          role,
-        })
-        .onConflictDoUpdate({
-          target: [roomParticipants.roomId, roomParticipants.userId],
-          set: {
-            role,
-          },
-        })
-    })
-
-    res.json({
-      success: true,
-      data: {
-        roomId: room.id,
-        role,
-      },
-      message: 'Successfully joined room',
-    })
-  } catch (error) {
-    console.error('Error joining room:', error)
-    res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      message: 'Failed to join room',
-    })
-  }
-})
 
 export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
   const { id } = req.params
@@ -466,6 +395,60 @@ export const getRoomById = asyncHandler(async (req: Request, res: CustomResponse
   }
 })
 
+export const validateRoomCode = asyncHandler(async (req: Request, res: CustomResponse) => {
+  const { code } = req.params
+
+  // Validation
+  if (!code) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation Error',
+      message: 'Code is required',
+    })
+    return
+  }
+
+  try {
+    // Check if room exists with this participant code
+    const room = await db.query.rooms.findFirst({
+      where: and(
+        eq(rooms.participantCode, code),
+        eq(rooms.isActive, true)
+      ),
+      columns: {
+        id: true,
+        name: true,
+        currentPhase: true
+      }
+    })
+
+    if (!room) {
+      res.status(404).json({
+        success: false,
+        error: 'Not Found',
+        message: 'Room not found or inactive'
+      })
+      return
+    }
+
+    res.json({
+      success: true,
+      data: {
+        exists: true,
+        roomName: room.name,
+        currentPhase: room.currentPhase
+      },
+      message: 'Room found'
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to validate room code'
+    })
+  }
+})
+
 export const getRoomByCode = asyncHandler(async (req: Request, res: CustomResponse<DetailedRoomResponse>) => {
   const { code } = req.params
   const currentUserId = req.userId!
@@ -481,11 +464,11 @@ export const getRoomByCode = asyncHandler(async (req: Request, res: CustomRespon
 
   try {
     // Find room by participant code (not facilitator code for security)
-    const room = await db.query.rooms.findFirst({
+    let roomForVerification = await db.query.rooms.findFirst({
       where: eq(rooms.participantCode, code),
     })
 
-    if (!room || !room.isActive) {
+    if (!roomForVerification || !roomForVerification.isActive) {
       res.status(404).json({
         success: false,
         error: 'Not Found',
@@ -496,40 +479,40 @@ export const getRoomByCode = asyncHandler(async (req: Request, res: CustomRespon
 
     // Check if user is already a participant
     const existingParticipant = await db.query.roomParticipants.findFirst({
-      where: and(eq(roomParticipants.roomId, room.id), eq(roomParticipants.userId, currentUserId)),
+      where: and(eq(roomParticipants.roomId, roomForVerification.id), eq(roomParticipants.userId, currentUserId)),
     })
 
     // Auto-join as participant if not already joined
     if (!existingParticipant) {
       await db.insert(roomParticipants).values({
-        roomId: room.id,
+        roomId: roomForVerification.id,
         userId: currentUserId,
         role: 'participant',
         joinedAt: new Date(),
       })
+    }
 
-      // Reload room data to include the new participant
-      const updatedRoom = await db.query.rooms.findFirst({
-        where: eq(rooms.id, room.id),
-        with: {
-          columns: {
-            orderBy: [columns.sortOrder],
-            with: {
-              cards: {
-                orderBy: [cards.sortOrder],
-                with: {
-                  author: true,
-                },
+    // Reload room data to include the new participant
+    const room = await db.query.rooms.findFirst({
+      where: eq(rooms.id, roomForVerification.id),
+      with: {
+        columns: {
+          orderBy: [columns.sortOrder],
+          with: {
+            cards: {
+              orderBy: [cards.sortOrder],
+              with: {
+                author: true,
               },
-              cardGroups: {
-                orderBy: [cardGroups.sortOrder],
-                with: {
-                  cardMemberships: {
-                    with: {
-                      card: {
-                        with: {
-                          author: true,
-                        },
+            },
+            cardGroups: {
+              orderBy: [cardGroups.sortOrder],
+              with: {
+                cardMemberships: {
+                  with: {
+                    card: {
+                      with: {
+                        author: true,
                       },
                     },
                   },
@@ -537,25 +520,17 @@ export const getRoomByCode = asyncHandler(async (req: Request, res: CustomRespon
               },
             },
           },
-          participants: {
-            with: {
-              user: true,
-            },
+        },
+        participants: {
+          with: {
+            user: true,
           },
         },
-      })
+      },
+    })
 
-      if (!updatedRoom) {
-        res.status(500).json({
-          success: false,
-          error: 'Internal Server Error',
-          message: 'Failed to reload room after joining',
-        })
-        return
-      }
-
-      // Use the updated room data
-      Object.assign(room, updatedRoom)
+    if (!room) {
+      throw new Error('Room not found after joining')
     }
 
     // Load vote information based on current phase (same logic as getRoomById)
